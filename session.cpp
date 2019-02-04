@@ -124,7 +124,7 @@ void Session::cdup(int paramIndex) {
 }
 void Session::cwd(int paramIndex) {
     string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-    PBB d = fs.isDir(path.c_str());
+    PBB d = FileSystem::isDir(path.c_str());
     const char *msg;
     if (d.first == true && d.second == true) {
         currentPath = path + '/';
@@ -140,12 +140,12 @@ void Session::cwd(int paramIndex) {
 }
 void Session::dele(int paramIndex) {
     string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-    PBB t = fs.isDir(path.c_str());
+    PBB t = FileSystem::isDir(path.c_str());
     const char *msg;
     if (t.first == false || t.second == true) {
         msg = "550 Delete operation failed." END_OF_LINE;
     } else {
-        if (fs.delFile(path.c_str()) == false) {
+        if (FileSystem::delFile(path.c_str()) == false) {
             msg = "550 Delete operation failed." END_OF_LINE;
         } else {
             msg = "250 Delete operation successful." END_OF_LINE;
@@ -187,7 +187,7 @@ void Session::list(int paramIndex) {
         }
         string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
         string res;
-        if (fs.ls(path.c_str(), res) == true) {
+        if (FileSystem::ls(path.c_str(), res) == true) {
             if (this->net.sendToDataFd(res.c_str(), res.length()) == false) {
                 msg = "425 Failed to establish connection." END_OF_LINE;
             } else {
@@ -200,7 +200,7 @@ void Session::list(int paramIndex) {
             this->close();
             return;
         }
-    } while (0);
+    } while (false);
     lastCmd = "";
     isLastCmdSuccess = false;
     this->net.closeDataListen();
@@ -209,7 +209,7 @@ void Session::list(int paramIndex) {
 void Session::mkd(int paramIndex) {
     string msg;
     string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-    if (fs.mkDir(path.c_str()) == false) {
+    if (FileSystem::mkDir(path.c_str()) == false) {
         msg = "550 Create directory operation failed." END_OF_LINE;
     } else {
         msg = ("257 \"" + path + "\" created" + END_OF_LINE);
@@ -247,7 +247,7 @@ void Session::pass(int paramIndex) {
             msg = "230 Login successful." END_OF_LINE;
             init();
         }
-    } while (0);
+    } while (false);
     if (this->net.sendToCmdFd(msg, strlen(msg)) == false) {
         this->close();
         return;
@@ -337,11 +337,11 @@ void Session::retr(int paramIndex) {
         if ((lastCmd != "PASV" && lastCmd != "PORT") || isLastCmdSuccess == false) {
             msg = "425 Use PORT or PASV first." END_OF_LINE;
         } else {
-            PBB isd = fs.isDir(path.c_str());
+            PBB isd = FileSystem::isDir(path.c_str());
             fprintf(stderr, "retr: %s %d %d %d", path.c_str(), isd.first, isd.second,
-                    fs.isExistsAndReadable(path.c_str()));
+                    FileSystem::isExistsAndReadable(path.c_str()));
             if (isd.first == false || isd.second == true ||
-                !(fs.isExistsAndReadable(path.c_str()))) {
+                !(FileSystem::isExistsAndReadable(path.c_str()))) {
                 msg = "550 Failed to open file." END_OF_LINE;
             } else {
                 success = true;
@@ -366,7 +366,7 @@ void Session::retr(int paramIndex) {
             this->close();
             return;
         }
-    } while (0);
+    } while (false);
     lastCmd = "";
     isLastCmdSuccess = false;
     this->net.closeDataListen();
@@ -375,7 +375,7 @@ void Session::retr(int paramIndex) {
 void Session::rmd(int paramIndex) {
     string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
     const char *msg;
-    if (fs.delDir(path.c_str()) == false) {
+    if (FileSystem::delDir(path.c_str()) == false) {
         msg = "550 Remove directory operation failed." END_OF_LINE;
     } else {
         msg = "250 Remove directory operation successful." END_OF_LINE;
@@ -390,7 +390,7 @@ void Session::stat(int paramIndex) {
     if (this->cmdBuf[paramIndex] != 0) {
         string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
         string res;
-        if (fs.ls(path.c_str(), res) == false) {
+        if (FileSystem::ls(path.c_str(), res) == false) {
             msg = "213-Status follows:" END_OF_LINE "213 End of status" END_OF_LINE;
         } else {
             msg = ("213-Status follows" + string(END_OF_LINE) + res + "213 End of status" +
@@ -436,7 +436,7 @@ void Session::stor(int paramIndex) {
             this->close();
             return;
         }
-    } while (0);
+    } while (false);
     lastCmd = "";
     isLastCmdSuccess = false;
     this->net.closeDataListen();
@@ -539,7 +539,7 @@ bool Session::parsePortCmd(string param, string &ip, int &port) {
     return true;
 }
 string Session::makeAbsolutePath(const string &path) {
-    if (fs.isPathAbsolute(path) == false) {
+    if (FileSystem::isPathAbsolute(path) == false) {
         return currentPath + path;
     } else {
         return path;
@@ -549,9 +549,9 @@ void Session::formatPasvReply(std::string &ip, int port) {
     if (ip.length() == 0) {
         bug("Session::formatPasvReply pass invalid ip to here");
     }
-    for (int i = 0; i < ip.length(); i++) {
-        if (ip[i] == '.') {
-            ip[i] = ',';
+    for (char &i : ip) {
+        if (i == '.') {
+            i = ',';
         }
     }
     ip = ip + "," + std::to_string(port / 256) + "," + std::to_string(port % 256);
