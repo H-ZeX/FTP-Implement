@@ -2,3 +2,7 @@ DebugInfo/
 .gdb_history
 *.o
 hzxftp
+cmake-build-debug/
+CMakeLists.txt
+.idea/
+.fuse_hidden00008c0900000003
