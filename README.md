@@ -8,4 +8,4 @@
    and that, because `syscall(SYS_setuid, uid)` work for thread itself, and what I use is threadPool, this make that I can't use this way to change uid. So the management of authorization is not implemented.
 
 - **should use `sudo` to run this ftp server, for that it use operating system's accout login mechanism.**
-
+- develop and test on linux kernel >= 4.10 (debian serial), so I don't know whethere it will work fine at other kernel or operating system
