@@ -1,5 +1,5 @@
 CC=clang++
-CFLAGS=-I. -std=c++11 -W -Wall -g -w
+CFLAGS=-I. -std=c++11 -W -Wall -g
 DEPS = utility.h netUtility.h session.h networkSession.h ls.h fileSystem.h prelogin.h ftp.h threadUtility.h threadPool.h
 
 %.o: %.cpp $(DEPS)
