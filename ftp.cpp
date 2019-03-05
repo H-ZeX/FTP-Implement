@@ -70,6 +70,7 @@ void *FTP::listenOnMainPort(void *argv) {
     // if mainfd is blocking, the ftp server will still work, so I don't call fatalError here
     // actually, I don't very understand that the effect of nonblocking for mainFd
     // i just do this according to the epoll's manual
+    // if use epollet, should make the fd nonblocking
     setNonBlocking(mainFd);
     fprintf(stderr, "FTP::listenOnMainPort is mainfd blocking: %d\n", isBlocking(mainFd));
     // if use EPOLLET here, when many connect come fastly,

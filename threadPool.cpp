@@ -33,7 +33,7 @@ ThreadPool::ThreadPool(size_t threadCnt, const int *sigToBlock) {
 }
 
 bool ThreadPool::addTask(const task_t &task) {
-    if (task.isValid() == false) {
+    if (!task.isValid()) {
         bug("pass invalid task to ThreadPool::addTask", false);
         return false;
     }
@@ -41,7 +41,7 @@ bool ThreadPool::addTask(const task_t &task) {
         warning("ThreadPool::addTask: the shutdown func has been called, should not add more task");
         return false;
     }
-    if (mutexLock(this->taskMutex) == false) {
+    if (!mutexLock(this->taskMutex)) {
         return false;
     }
     if (taskQue.size() >= MAX_TASK_CNT) {
@@ -54,6 +54,10 @@ bool ThreadPool::addTask(const task_t &task) {
         // and get the task success
         // after that, the cond will signal another thread,
         // however, this thread will get no task
+        //
+        // update 2019.3.2
+        // not just this, what if, when unlock, an new thread come to get the task
+        // and it success, then the thread be waked up will not get the task
         taskQue.push(task);
         pthread_cond_signal(&this->notify);
         mutexUnlock(taskMutex);
@@ -72,9 +76,9 @@ void ThreadPool::shutdown(bool completeRest) {
 }
 
 void *ThreadPool::worker(void *argv) {
-    ThreadPool &tpool = *(((ThreadArgv *)argv)->pool);
-    const int *p = ((ThreadArgv *)argv)->sigToBlock;
-    if (p && changeThreadSigMask(p, SIG_BLOCK) == false) {
+    ThreadPool &tpool = *(((ThreadArgv *) argv)->pool);
+    const int *p = ((ThreadArgv *) argv)->sigToBlock;
+    if (p && !changeThreadSigMask(p, SIG_BLOCK)) {
         warning("ThreadPool worker changeThreadSigMask failed, this thread exit");
         pthread_exit(nullptr);
     }
@@ -85,7 +89,7 @@ void *ThreadPool::worker(void *argv) {
             return nullptr;
         }
         if (tpool.taskQue.size() == 0 && tpool.isShutdown.load() == noShutdown) {
-            if (condWait(tpool.notify, tpool.taskMutex) == false) {
+            while (!condWait(tpool.notify, tpool.taskMutex)) {
                 mutexUnlock(tpool.taskMutex);
                 atomic_fetch_sub<int>(&(tpool.startedThreadCnt), 1);
                 return nullptr;
