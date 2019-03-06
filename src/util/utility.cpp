@@ -255,7 +255,7 @@ bool checkFdType(int fd, int type, const char *const errorMsg, const char *const
 UserInfo getUidGidHomeDir(const char *const username) {
     struct passwd pwd, *res;
     long t = Sysconf(_SC_GETPW_R_SIZE_MAX);
-    t = (t == -1) * UNDETERMINATE_LIMIT + (t != -1) * t;
+    t = (t == -1) * UN_DETERMINATE_LIMIT + (t != -1) * t;
     char buf[t];
     errno_t ea[] = {EINTR, 0};
     int q;

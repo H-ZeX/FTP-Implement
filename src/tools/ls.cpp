@@ -77,7 +77,7 @@ int List::lsDir(const char *const path, std::string &result) {
     streamp = opendir(path);
     if (!streamp) {
         result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
-        return OPENDIR_FAIL;
+        return OPEN_DIR_FAIL;
     }
     // every time call readdir, should set errno=0, in order to check whether there are error
     // occur
@@ -109,7 +109,7 @@ int List::lsDir(const char *const path, std::string &result) {
     streamp = opendir(path);
     if (!streamp) {
         result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
-        return OPENDIR_FAIL;
+        return OPEN_DIR_FAIL;
     }
     char fmtName[20], fmtSize[20], printBuf[maxNameLen + 10];
     if (snprintf(fmtName, 20, "%%%llus", (ull_t)maxNameLen) > 19) {

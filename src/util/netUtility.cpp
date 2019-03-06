@@ -85,7 +85,7 @@ int openClientfd(const char *const hostname, const char *const port) {
         warning(("open client file descriptor on " + std::string(hostname) + " : " +
                  std::string(port) + " failed")
                     .c_str());
-        return OPEN_CLIENTFD_FAIL;
+        return OPEN_CLIENT_FD_FAIL;
     } else {
         return clientfd;
     }
@@ -123,13 +123,13 @@ int openListenfd(const char *const port, int listenq) {
             break;
         if (close(listenfd) < 0) {
             warningWithErrno("open_listenfd close() failed");
-            return OPEN_CLIENTFD_CLOSE_FAIL;
+            return OPEN_CLIENT_FD_CLOSE_FAIL;
         }
     }
     freeaddrinfo(listp);
     if (!p) {
         warning(("open listen file descriptor on port " + std::string(port) + " failed").c_str());
-        return OPEN_LISTENFD_FAIL;
+        return OPEN_LISTEN_FD_FAIL;
     }
     if (listen(listenfd, listenq) < 0) {
         warningWithErrno("open_listenfd listen() failed");
@@ -139,7 +139,7 @@ int openListenfd(const char *const port, int listenq) {
         if (r < 0) {
             warningWithErrno("open_listenfd close() failed");
         }
-        return OPEN_LISTENFD_CLOSE_FAIL;
+        return OPEN_LISTEN_FD_CLOSE_FAIL;
     }
     return listenfd;
 }

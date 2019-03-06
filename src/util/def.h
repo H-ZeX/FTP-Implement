@@ -21,7 +21,7 @@ using std::vector;
 using std::exception;
 
 #define BT_BUF_SIZE 100 // the backtrace's buf size
-#define UNDETERMINATE_LIMIT 0x1000
+#define UN_DETERMINATE_LIMIT 0x1000
 #define ERRNO_BUF_SIZE 256
 #define WARNING_BUF_SIZE (2 * ERRNO_BUF_SIZE)
 #define HOSTNAME_MAX_LEN 256
@@ -56,13 +56,13 @@ using std::exception;
  */
 #define READ_FAIL -8
 #define ACCEPT_CONNECT_FAIL -6
-#define OPEN_CLIENTFD_CLOSE_FAIL -5
-#define OPEN_CLIENTFD_FAIL -4
-#define OPEN_LISTENFD_FAIL -3
+#define OPEN_CLIENT_FD_CLOSE_FAIL -5
+#define OPEN_CLIENT_FD_FAIL -4
+#define OPEN_LISTEN_FD_FAIL -3
 #define GET_ADDR_INFO_FAIL -2
-#define OPEN_LISTENFD_CLOSE_FAIL -1
+#define OPEN_LISTEN_FD_CLOSE_FAIL -1
 #define SUCCESS 0
-#define OPENDIR_FAIL 1
+#define OPEN_DIR_FAIL 1
 #define READDIR_FAIL 2
 #define STAT_FAIL 3
 /**
@@ -154,11 +154,11 @@ class EndOfSessionException : public exception {
 /**
  * others
  */
-#define RETRYTIME 5
+#define RETRY_TIME 5
 #define END_OF_LINE "\r\n"
 #define SIZEOF_END_OF_LINE (sizeof("\r\n") / sizeof(char) - 1)
 // max char cnt each line without eol
 #define MCEL_WITHOUT_EOL (80 - SIZEOF_END_OF_LINE)
-#define LISTENQ 10240
+#define LISTEN_Q 10240
 
 #endif

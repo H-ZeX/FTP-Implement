@@ -10,8 +10,8 @@
 #ifndef __PRE_LOGIN_H__
 #define __PRE_LOGIN_H__
 
-#include "def.h"
-#include "utility.h"
+#include "src/util/def.h"
+#include "src/util/utility.h"
 #include <crypt.h>
 #include <shadow.h>
 #include <string>

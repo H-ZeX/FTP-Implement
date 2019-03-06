@@ -16,7 +16,7 @@ atomic<int> *FTP::currentFdCnt = new atomic<int>(0);
 bool FTP::willExit = false;
 int FTP::epollFd = -1;
 const int FTP::sigToBlock[] = {SIGPIPE, SIGINT, 0};
-const string FTP::thisMachieIP = getThisMachineIp();
+const string FTP::thisMachineIP = getThisMachineIp();
 
 void FTP::start(int port) {
     string p = std::to_string(port);
@@ -186,7 +186,7 @@ void FTP::openNewSession(int mainFd) {
         fprintf(stderr, "Open New Session failed %d %d\n", currentFdCnt->load(), MAX_EPOLL_SIZE);
         return;
     }
-    Session *tmp = new (std::nothrow) Session(newFd, callbackOnEndOfCmd, callbackOnEndOfSession, thisMachieIP);
+    Session *tmp = new (std::nothrow) Session(newFd, callbackOnEndOfCmd, callbackOnEndOfSession, thisMachineIP);
     if (tmp == nullptr) {
         warning("FTP::openNewSession new session failed");
         sendFailedMsg(newFd);

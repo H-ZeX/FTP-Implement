@@ -8,11 +8,12 @@
 *
 **********************************************************************************/
 
-#include "def.h"
-#include "netUtility.h"
-#include "utility.h"
-#include <stdlib.h>
-#include <time.h>
+#include "src/util/def.h"
+#include "src/util/netUtility.h"
+#include "src/util/utility.h"
+#include <cstdlib>
+#include <ctime>
+
 using std::pair;
 using std::string;
 
@@ -27,7 +28,7 @@ class NetworkSession {
     int getDataFd();
     PBI openDataListen();
     bool acceptDataConnect();
-    bool openDataConnection(const char *const hostname, const char *port);
+    bool openDataConnection(const char *hostname, const char *port);
     bool closeDataListen();
     bool closeDataConnect();
     /**
@@ -40,10 +41,10 @@ class NetworkSession {
     /**
      * @return whether write all data to the fd succeed
      */
-    bool sendToCmdFd(const char *const msg, size_t len);
+    bool sendToCmdFd(const char *msg, size_t len);
     bool sendToDataFd(const byte *data, size_t len);
-    bool sendFile(const char *const path);
-    bool recvAndWriteFile(const char *const path);
+    bool sendFile(const char *path);
+    bool recvAndWriteFile(const char *path);
     NetworkSession();
     ~NetworkSession();
 

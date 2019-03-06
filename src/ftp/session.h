@@ -10,13 +10,13 @@
 #ifndef __SESSION_H__
 #define __SESSION_H__
 
-#include "def.h"
-#include "fileSystem.h"
-#include "ls.h"
-#include "netUtility.h"
+#include "src/util/def.h"
+#include "src/tools/fileSystem.h"
+#include "src/tools/ls.h"
+#include "src/util/netUtility.h"
 #include "networkSession.h"
 #include "prelogin.h"
-#include "utility.h"
+#include "src/util/utility.h"
 #include <map>
 #include <string>
 using std::string;

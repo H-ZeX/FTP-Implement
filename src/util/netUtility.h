@@ -48,7 +48,7 @@ int openClientfd(const char *const hostname, const char *const port);
  *
  * MT-safe  env local
  */
-int openListenfd(const char *const port, int listenq = LISTENQ);
+int openListenfd(const char *const port, int listenq = LISTEN_Q);
 /**
  * @return ((isEND_OF_LINE, isEOF), recvCnt)
  * @return if recvCnt<0, error occure

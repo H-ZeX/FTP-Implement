@@ -11,8 +11,8 @@
 #ifndef __LS_H__
 #define __LS_H__
 
-#include "def.h"
-#include "utility.h"
+#include "src/util/def.h"
+#include "src/util/utility.h"
 #include <ctype.h>
 #include <dirent.h>
 #include <dirent.h>
@@ -65,7 +65,7 @@ class List {
     static std::string id2name(TId id, TFun handler, TCMemberPtr ptr) {
         long bufSize = std::max<long>(Sysconf(_SC_GETGR_R_SIZE_MAX), Sysconf(_SC_GETPW_R_SIZE_MAX));
         // if bufSize<0, then _SC_GETPW_R_SIZE_MAX or _SC_GETGR_R_SIZE_MAX is undeterminate
-        bufSize = bufSize + (bufSize < 0) * (UNDETERMINATE_LIMIT - bufSize);
+        bufSize = bufSize + (bufSize < 0) * (UN_DETERMINATE_LIMIT - bufSize);
         char buf[bufSize];
         TData data, *res;
         int t;

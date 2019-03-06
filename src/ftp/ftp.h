@@ -11,12 +11,12 @@
 #ifndef __FTP_H__
 #define __FTP_H__
 
-#include "def.h"
-#include "netUtility.h"
+#include "src/util/def.h"
+#include "src/util/netUtility.h"
 #include "session.h"
-#include "threadPool.h"
-#include "utility.h"
-#include <signal.h>
+#include "src/tools/threadPool.h"
+#include "src/util/utility.h"
+#include <csignal>
 #include <sys/epoll.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
@@ -35,7 +35,7 @@
  * so when return from session handle (session handle only handle one cmd one time)
  * I need to explicit call epoll_ctl to restart this session cmdFd
  * this means that, if use lock in epoll_ctl, the performance will to low
- * in this case, every session own one thread will better than threadpoll
+ * in this case, every session own one thread will better than threadPool
  *
  * @note be careful that after a fd (not mainfd) has its session,
  * it should only be closed at the destructors of session object
@@ -47,31 +47,30 @@
  * and the session may be deleted when this new connect still alive.
  *
  * @note all thread is block SIGPIPE and SIGINT, except that,
- * when use epoll_pwait only SIGPIPE is block
+ * when use epoll_wait only SIGPIPE is block
  * for that, the signal may not send to control thread
  * so even if use signal to register the handler, the epoll_wait in control thread
  * may no recv the signal and still wait;
- * so i need to forbid other thread to recv signal except epoll_pwait is run
+ * so i need to forbid other thread to recv signal except epoll_wait is run
  */
 class FTP {
   public:
     ~FTP() {
-        for (auto it = userRecord.begin(); it != userRecord.end(); ++it) {
-            if (it->second != nullptr) {
-                delete (it->second);
+        for (auto &it : userRecord) {
+            if (it.second != nullptr) {
+                delete (it.second);
             }
         }
-        delete this->pool;
-        delete this->currentFdCnt;
+        delete FTP::pool;
+        delete FTP::currentFdCnt;
     }
     /**
      * for each process, this func can only be called one time
-     * otherwise, the behavious is undefined;
+     * otherwise, the behavior is undefined;
      */
     void start(int port = 21);
 
   private:
-    static void init();
     static void *listenOnMainPort(void *argv);
     static void *userHandler(void *argv);
     static void callbackOnEndOfSession(void *argv);
@@ -106,7 +105,6 @@ class FTP {
     static void interruptHandler(int num);
 
   private:
-    static pthread_mutex_t queMutex;
     static pthread_mutex_t userRecordMutex;
     static map<int, Session *> userRecord; // map cmdFd to Session*
     static bool willExit;
@@ -119,11 +117,10 @@ class FTP {
     static int epollFd;
 
     static const int threadCnt = 5;
-    static const int maxUserCnt = MAX_EPOLL_SIZE;
     /**
      * the 0 indicate the end of sigToBlock
      */
     static const int sigToBlock[];
-    static const string thisMachieIP; 
+    static const string thisMachineIP;
 };
 #endif

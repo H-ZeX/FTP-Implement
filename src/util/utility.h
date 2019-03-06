@@ -125,7 +125,7 @@ inline bool isNumber(const char *const str, int base);
         do {                                                                                       \
             returnCode = action;                                                                   \
             cnt++;                                                                                 \
-            if (cnt >= RETRYTIME) {                                                                \
+            if (cnt >= RETRY_TIME) {                                                                \
                 break;                                                                             \
             }                                                                                      \
         } while (shouldContinue(errno));                                                           \
@@ -149,7 +149,7 @@ inline bool isNumber(const char *const str, int base);
         do {                                                                                       \
             returnCode = action;                                                                   \
             cnt++;                                                                                 \
-            if (cnt >= RETRYTIME) {                                                                \
+            if (cnt >= RETRY_TIME) {                                                                \
                 break;                                                                             \
             }                                                                                      \
         } while (shouldContinue(returnCode));                                                      \
