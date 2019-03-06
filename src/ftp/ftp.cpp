@@ -20,6 +20,7 @@ const string FTP::thisMachineIP = getThisMachineIp();
 
 void FTP::start(int port) {
     string p = std::to_string(port);
+    pool->start();
     pthread_t pid;
     if (!changeThreadSigMask(sigToBlock, SIG_BLOCK)) {
         return;

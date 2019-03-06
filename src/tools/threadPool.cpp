@@ -10,22 +10,40 @@
 
 #include "threadPool.h"
 
-ThreadPool::ThreadPool(size_t threadCnt, const int *sigToBlock) {
-    if (maxThreadCnt() < threadCnt) {
-        warning("the threadCnt param too large, use DEFAULT_THREAD_CNT (100)");
-        threadCnt = DEFAULT_THREAD_CNT;
-    }
+/**
+ * this threadPool is fix threadPool
+ * @param threadCnt the thread cnt of inside this pool,
+ * if it >= the
+ * @param sigToBlock all thread inside this pool will block these signals.
+ * note that this array should end with 0
+ */
+ThreadPool::ThreadPool(size_t threadCnt, const int *sigToBlock)
+        : threadCnt(computeThreadCnt(threadCnt)),
+          sigToBlock(sigToBlock) {
     runningThreadCnt = 0;
     startedThreadCnt = 0;
-    isShutdown = noShutdown;
+    isShutdown = RUNNING;
     pthread_mutex_init(&taskMutex, nullptr);
+    pthread_mutex_init(&threadArrayMutex, nullptr);
     pthread_cond_init(&notify, nullptr);
     threadArray.reserve(threadCnt);
     argvArray.reserve(threadCnt);
+}
+
+void ThreadPool::start() {
+    /*
+     * this method is to createThread.
+     * according to Java concurrency in practice,
+     * should NOT start thread in constructor, or the `this` point will escape.
+     * which may make another thread see the incomplete construct object.
+     */
+
+    for (size_t i = 0; i < threadCnt; i++) {
+        argvArray.emplace_back(this, sigToBlock);
+    }
     pthread_t k;
-    for (int i = 0; i < threadCnt; i++) {
-        argvArray.push_back(ThreadArgv(this, sigToBlock));
-        if (createThread(k, &(ThreadPool::worker), &(*argvArray.rbegin()))) {
+    for (size_t i = 0; i < threadCnt; i++) {
+        if (createThread(k, &(ThreadPool::worker), &(argvArray[i]))) {
             threadArray.push_back(k);
             atomic_fetch_add<int>(&(this->startedThreadCnt), 1);
         }
@@ -33,11 +51,14 @@ ThreadPool::ThreadPool(size_t threadCnt, const int *sigToBlock) {
 }
 
 bool ThreadPool::addTask(const task_t &task) {
+    // if the caller pass an incomplete constructed task object to this method,
+    // then this method may fail, but this method can not avoid this case,
+    // this is not this method's responsibility
     if (!task.isValid()) {
         bug("pass invalid task to ThreadPool::addTask", false);
         return false;
     }
-    if (this->isShutdown.load() != noShutdown) {
+    if (this->isShutdown.load() != RUNNING) {
         warning("ThreadPool::addTask: the shutdown func has been called, should not add more task");
         return false;
     }
@@ -49,15 +70,7 @@ bool ThreadPool::addTask(const task_t &task) {
         mutexUnlock(this->taskMutex);
         return false;
     } else {
-        // if signal() is after unlock();
-        // if just after push, a new thread try to test whether taskQue.size()==0
-        // and get the task success
-        // after that, the cond will signal another thread,
-        // however, this thread will get no task
-        //
-        // update 2019.3.2
-        // not just this, what if, when unlock, an new thread come to get the task
-        // and it success, then the thread be waked up will not get the task
+        // the unlock call must after signal call
         taskQue.push(task);
         pthread_cond_signal(&this->notify);
         mutexUnlock(taskMutex);
@@ -67,79 +80,95 @@ bool ThreadPool::addTask(const task_t &task) {
 
 void ThreadPool::shutdown(bool completeRest) {
     if (completeRest) {
-        this->isShutdown = gracefulShutdown;
+        this->isShutdown = GRACEFUL_SHUTDOWN;
     } else {
-        this->isShutdown = immediateShutdown;
+        this->isShutdown = IMMEDIATE_SHUTDOWN;
     }
     // for that all thread may wait for new task, so i need to signal them
     pthread_cond_broadcast(&this->notify);
 }
 
+// TODO should add a new thread when a thread exit
 void *ThreadPool::worker(void *argv) {
-    ThreadPool &tpool = *(((ThreadArgv *) argv)->pool);
-    const int *p = ((ThreadArgv *) argv)->sigToBlock;
+    /*
+     * if the shutdown is called, then the thread wait at cond will response immediately,
+     * the thread that run task will run until the task end and response immediately
+     */
+
+    ThreadArgv &threadArgv = *(ThreadArgv *) argv;
+    ThreadPool &pool = *(threadArgv.pool);
+    const int *p = threadArgv.sigToBlock;
+
     if (p && !changeThreadSigMask(p, SIG_BLOCK)) {
+        // if can not change the signal, return
         warning("ThreadPool worker changeThreadSigMask failed, this thread exit");
-        pthread_exit(nullptr);
+        atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
+        return nullptr;
     }
     while (true) {
-        // get the mutex
-        if (!mutexLock(tpool.taskMutex, MUTEX_TIMEOUT_SEC)) {
-            atomic_fetch_sub<int>(&(tpool.startedThreadCnt), 1);
+        // use timeout to avoid dead lock
+        if (!mutexLock(pool.taskMutex, MUTEX_TIMEOUT_SEC)) {
+            warning("there may be an dead lock on this taskMutex, ThreadPool::worker");
+            // if get lock failed, exit this thread
+            atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
             return nullptr;
         }
-        if (tpool.taskQue.size() == 0 && tpool.isShutdown.load() == noShutdown) {
-            while (!condWait(tpool.notify, tpool.taskMutex)) {
-                mutexUnlock(tpool.taskMutex);
-                atomic_fetch_sub<int>(&(tpool.startedThreadCnt), 1);
+        // when return from cond wait, should check whether the cond is still true
+        while (pool.taskQue.empty() && pool.isShutdown.load() == RUNNING) {
+            if (!condWait(pool.notify, pool.taskMutex)) {
+                // if cond wait fail, exit this thread
+                mutexUnlock(pool.taskMutex);
+                atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
                 return nullptr;
             }
         }
-        // for that only the shutdown func call broadcast
-        // so if taskQue is empty, and the condWait return true
+        // for that only the shutdown func call broadcast,
+        // so if taskQue is empty, and the condWait return true,
         // one of these check will success
-        if ((tpool.isShutdown.load() == immediateShutdown) ||
-            (tpool.isShutdown.load() == gracefulShutdown && tpool.taskQue.size() == 0)) {
-            mutexUnlock(tpool.taskMutex);
-            atomic_fetch_sub<int>(&(tpool.startedThreadCnt), 1);
+        if ((pool.isShutdown.load() == IMMEDIATE_SHUTDOWN) ||
+            (pool.isShutdown.load() == GRACEFUL_SHUTDOWN && pool.taskQue.empty())) {
+            mutexUnlock(pool.taskMutex);
+            atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
             return nullptr;
         }
-        // when cond wait, some thread may wait on cond
-        // some thread may just wait in the mutex at the beginning
-        // if these thread run as long as the addTask() unlock mutex,
-        // then the task that own by the thread who is wakeup from cond wait
-        // will be stolen, so this taskQue may be 0 here;
-        if (tpool.taskQue.size() == 0) {
-            mutexUnlock(tpool.taskMutex);
-            continue;
-        }
-        const task_t k = tpool.taskQue.front();
-        tpool.taskQue.pop();
-        mutexUnlock(tpool.taskMutex);
-        atomic_fetch_add<int>(&(tpool.runningThreadCnt), 1);
+        const task_t k = pool.taskQue.front();
+        pool.taskQue.pop();
+        mutexUnlock(pool.taskMutex);
+        atomic_fetch_add<int>(&(pool.runningThreadCnt), 1);
         void *r = k.func(k.argument);
         if (k.callback) {
             k.callback(r);
         }
-        atomic_fetch_sub<int>(&(tpool.runningThreadCnt), 1);
-        if ((tpool.isShutdown.load() == immediateShutdown)) {
-            atomic_fetch_sub<int>(&(tpool.startedThreadCnt), 1);
+        atomic_fetch_sub<int>(&(pool.runningThreadCnt), 1);
+        if ((pool.isShutdown.load() == IMMEDIATE_SHUTDOWN)) {
+            atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
             return nullptr;
         }
     }
 }
 
 ThreadPool::~ThreadPool() {
-    if (this->isShutdown.load() == noShutdown || this->runningThreadCnt.load() > 0 ||
+    if (this->isShutdown.load() == RUNNING || this->runningThreadCnt.load() > 0 ||
         this->startedThreadCnt.load() > 0) {
         fprintf(stderr, "shutdown\n");
         this->shutdown();
     }
-    // for that after sub startedThreadCnt, the thread may be interrupt,
-    // so it haven't end
-    for (int i = 0; i < threadArray.size(); i++) {
-        joinThread(threadArray[i]);
+
+    // should lock this mutex, this mutex is like memory barrier
+    mutexLock(threadArrayMutex);
+    for (unsigned long i : threadArray) {
+        joinThread(i);
     }
+    mutexUnlock(threadArrayMutex);
+
     condDestroy(this->notify);
     mutexDestroy(this->taskMutex);
+    mutexDestroy(this->threadArrayMutex);
+}
+
+size_t ThreadPool::computeThreadCnt(size_t threadCnt) {
+    if (maxThreadCnt() < threadCnt) {
+        return DEFAULT_THREAD_CNT;
+    }
+    return threadCnt;
 }

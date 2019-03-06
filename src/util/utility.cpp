@@ -71,8 +71,12 @@ long Sysconf(int name) {
     errno = es;
     return t;
 }
+/**
+ * @return the limit on the number of thread
+ * for the real user ID of the calling process.
+ */
 size_t maxThreadCnt() {
-    rlimit rl;
+    rlimit rl{};
     if (getrlimit(RLIMIT_NPROC, &rl) < 0) {
         return DEFAULT_THREAD_CNT;
     } else {

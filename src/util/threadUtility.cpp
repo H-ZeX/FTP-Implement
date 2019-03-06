@@ -18,7 +18,7 @@ bool mutexLock(pthread_mutex_t &mutex, int timeout) {
         WrapForFunc(pthread_mutex_lock(&mutex), 0, "mutexLock pthread_mutex_lock failed", false, t);
         return t == 0;
     } else {
-        timespec timeoutTime;
+        timespec timeoutTime{};
         WrapForFunc(clock_gettime(CLOCK_REALTIME, &timeoutTime), 0,
                     "mutexLock clock_gettime failed", true, t);
         if (t < 0) {
@@ -52,7 +52,7 @@ bool condWait(pthread_cond_t &cond, pthread_mutex_t &mutex, int timeout) {
         pthread_cond_wait(&cond, &mutex);
         return true;
     } else {
-        timespec timeoutTime;
+        timespec timeoutTime{};
         WrapForFunc(clock_gettime(CLOCK_REALTIME, &timeoutTime), 0,
                     "mutexLock clock_gettime failed", true, t);
         if (t < 0) {
@@ -99,7 +99,7 @@ bool rwlockRdlock(pthread_rwlock_t &lock, int time) {
         }
         return t == 0;
     } else {
-        timespec timeoutTime;
+        timespec timeoutTime{};
         WrapForFunc(clock_gettime(CLOCK_REALTIME, &timeoutTime), 0,
                     "mutexLock clock_gettime failed", true, t);
         if (t < 0) {
@@ -121,7 +121,7 @@ bool rwlockWrlock(pthread_rwlock_t &lock, int time) {
         }
         return t == 0;
     } else {
-        timespec timeoutTime;
+        timespec timeoutTime{};
         WrapForFunc(clock_gettime(CLOCK_REALTIME, &timeoutTime), 0,
                     "mutexLock clock_gettime failed", true, t);
         if (t < 0) {
@@ -151,7 +151,7 @@ bool changeThreadSigMask(const int sigSet[], int how) {
             return false;
         }
     }
-    int s = pthread_sigmask(how, &set, NULL);
+    int s = pthread_sigmask(how, &set, nullptr);
     if (s != 0) {
         warningWithErrno("changeThreadSigMask pthread_sigmask", s);
         return false;
