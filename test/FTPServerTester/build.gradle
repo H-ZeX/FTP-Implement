@@ -1,0 +1,31 @@
+plugins {
+    id 'java'
+    id "name.remal.fat-jar" version "1.0.113"
+}
+
+group 'H-ZeX'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'main.Main'
+        )
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testCompile group: 'org.springframework', name: 'spring-test', version: '5.1.5.RELEASE'
+
+    compile group: 'org.springframework', name: 'spring-core', version: '5.1.5.RELEASE'
+    compile group: 'org.springframework', name: 'spring-context', version: '5.1.5.RELEASE'
+}
