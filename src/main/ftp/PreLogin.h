@@ -1,7 +1,7 @@
 /**********************************************************************************
 *   Copyright © 2018 H-ZeX. All Rights Reserved.
 *
-*   File Name:    prelogin.h
+*   File Name:    preLogin.h
 *   Author:       H-ZeX
 *   Create Time:  2018-08-22-22:13:02
 *   Describe:
@@ -22,7 +22,7 @@ using std::string;
  *
  * MT-safe
  */
-UserInfo prelogin(const char *const username, const char *const passwd, const char *const ip = "",
-                  const char *const port = "");
+UserInfo preLogin(const char *username, const char *passwd, const char *ip = "",
+                  const char *port = "");
 
 #endif

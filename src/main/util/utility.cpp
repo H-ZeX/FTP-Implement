@@ -14,7 +14,7 @@ void bug(const char *const msg, bool willExit, int lineNum) {
     void *buffer[BT_BUF_SIZE];
     int t = backtrace(buffer, BT_BUF_SIZE);
     char **str = backtrace_symbols(buffer, t);
-    if (str == NULL) {
+    if (str == nullptr) {
         fprintf(stderr, "backtrace_symbols error");
         exit(BUG_EXIT);
     }
@@ -29,6 +29,7 @@ void bug(const char *const msg, bool willExit, int lineNum) {
         exit(BUG_EXIT);
     }
 }
+
 void fatalError(const char *const msg) {
     fprintf(stderr, "%s\n", msg);
     exit(FATAL_ERROR_EXIT);
@@ -46,6 +47,7 @@ void bugWithErrno(const char *const msg, errno_t code, bool willExit) {
 void warning(const char *const msg) {
     fprintf(stderr, "%s\n", msg);
 }
+
 void warningWithErrno(const char *const msg, errno_t code) {
     char errnoBuf[ERRNO_BUF_SIZE], warningBuf[WARNING_BUF_SIZE];
     if (snprintf(warningBuf, WARNING_BUF_SIZE, "%s: %s", msg,
@@ -55,7 +57,7 @@ void warningWithErrno(const char *const msg, errno_t code) {
     warning(warningBuf);
 }
 
-void mylog(const char *const msg) {
+void myLog(const char *const msg) {
     printf("%s\n", msg);
     fflush(stdout);
 }
@@ -71,6 +73,7 @@ long Sysconf(int name) {
     errno = es;
     return t;
 }
+
 /**
  * @return the limit on the number of thread
  * for the real user ID of the calling process.
@@ -87,7 +90,7 @@ size_t maxThreadCnt() {
 char *mereString(char *dest, const char *const strArray[], size_t maxLen) {
     size_t restLen = maxLen;
     dest[0] = 0;
-    for (int i = 0; strArray[i]; i++ && restLen > 0) {
+    for (int i = 0; strArray[i] && restLen > 0; i++) {
         strncat(dest, strArray[i], restLen);
         restLen -= strnlen(strArray[i], restLen);
     }
@@ -108,8 +111,8 @@ void string_split(const std::string &str, std::vector<std::string> &res, char se
         sp.push_back(separate);
     }
     auto judge = [sp](unsigned char c) {
-        for (auto it = sp.begin(); it != sp.end(); ++it) {
-            if (*it == c) {
+        for (char it : sp) {
+            if (it == c) {
                 return true;
             }
         }
@@ -133,14 +136,17 @@ void string_split(const std::string &str, std::vector<std::string> &res, char se
         p = q;
     }
 }
+
 void string_upper(char *src, int len) {
     for (int i = 0; i < len; i++) {
         src[i] = (src[i] >= 'a' && src[i] <= 'z') * (-0x20) + src[i];
     }
 }
+
 char char_upper(char c) {
     return (c >= 'a' && c <= +'z') * (-0x20) + c;
 }
+
 bool isNumber(const char *const str, int base) {
     for (int i = 0; str[i]; i++) {
         if (base <= 10) {
@@ -162,6 +168,7 @@ byte *byteCpy(byte *dest, const byte *const src, int n) {
     }
     return dest;
 }
+
 byte *byteCat(byte *dest, int ndest, const byte *const src, int nsrc) {
     dest += ndest;
     for (int i = 0; i < nsrc; i++) {
@@ -169,6 +176,7 @@ byte *byteCat(byte *dest, int ndest, const byte *const src, int nsrc) {
     }
     return dest - ndest;
 }
+
 int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
     if (buf.reRCap > 0) {
         int t = std::min<int>(buf.reRCap, want);
@@ -207,6 +215,7 @@ int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
     // should not come here;
     return READ_FAIL;
 }
+
 bool writeAllData(int fd, const byte *buf, size_t size) {
     // If size is zero and fd refers to a file other than a regular file, the results of write are
     // not specified.
@@ -230,13 +239,14 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
     fprintf(stderr, "writeAllData true\n");
     return true;
 }
+
 bool closeFileDescriptor(int fd, const char *msg) {
-    if(fd<3 && fd>=0) {
+    if (fd < 3 && fd >= 0) {
         bug("closeFileDescriptor");
     }
     errno_t ppp[] = {EINTR, 0};
     int r;
-    errnoRetryV_1(close(fd), ppp, "closeFileDescriptor", r);
+    errnoRetryV1(close(fd), ppp, "closeFileDescriptor", r);
     if (r < 0) {
         warningWithErrno((string("closeFileDescriptor failed") + msg).c_str());
     }
@@ -256,18 +266,19 @@ bool checkFdType(int fd, int type, const char *const errorMsg, const char *const
         return true;
     }
 }
+
 UserInfo getUidGidHomeDir(const char *const username) {
-    struct passwd pwd, *res;
+    struct passwd pwd{}, *res;
     long t = Sysconf(_SC_GETPW_R_SIZE_MAX);
     t = (t == -1) * UN_DETERMINATE_LIMIT + (t != -1) * t;
     char buf[t];
     errno_t ea[] = {EINTR, 0};
     int q;
-    errnoRetryV_2(getpwnam_r(username, &pwd, buf, t, &res), ea, "getUidGid failed", q);
+    errnoRetryV2(getpwnam_r(username, &pwd, buf, t, &res), ea, "getUidGid failed", q);
     if (q != 0) {
         warningWithErrno("getUidGid failed", q);
     }
-    return UserInfo(q == 0 && res != NULL, pwd.pw_uid, pwd.pw_gid, "", "", username, pwd.pw_dir);
+    return UserInfo(q == 0 && res != nullptr, pwd.pw_uid, pwd.pw_gid, "", "", username, pwd.pw_dir);
 }
 
 bool setThreadUidAndGid(uid_t uid, gid_t gid) {
@@ -340,24 +351,9 @@ bool setNonBlocking(int fd) {
     return true;
 }
 
-bool setBlocking(int fd) {
-    if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) & (~O_NONBLOCK)) == -1) {
-        warningWithErrno("setBlocking");
-        return false;
-    }
-    return true;
-}
-bool isBlocking(int fd) {
-    int t = 0;
-    if ((t = fcntl(fd, F_GETFL, 0)) == -1) {
-        warningWithErrno("setBlocking");
-        return false;
-    }
-    return !(t & O_NONBLOCK);
-}
 
 bool wrapForSignalAction(int signum, sighandler_t handler) {
-    struct sigaction action, old_action;
+    struct sigaction action{}, old_action{};
 
     action.sa_handler = handler;
     sigemptyset(&action.sa_mask); /* Block sigs of type being handled */

@@ -8,7 +8,7 @@
 *
 **********************************************************************************/
 
-#include "fileSystem.h"
+#include "FileSystem.h"
 
 bool FileSystem::ls(const char *const pathname, std::string &result) {
     return isAbsolute(pathname) && (List::ls(pathname, result) == 0);

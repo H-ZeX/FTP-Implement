@@ -29,7 +29,7 @@
  *
  * MT-safe env local
  */
-int acceptConnect(int listenfd);
+int acceptConnect(int listenFd);
 /**
  * MT-safe  env local
  * @return -5 close failed (the function inside also use close)
@@ -39,7 +39,7 @@ int acceptConnect(int listenfd);
  *
  * MT-safe env local
  */
-int openClientfd(const char *const hostname, const char *const port);
+int openClientFd(const char *const hostname, const char *const port);
 /**
  * @return -3 open_listenfd failed
  * @return -2 getaddrinfo failed
@@ -48,7 +48,7 @@ int openClientfd(const char *const hostname, const char *const port);
  *
  * MT-safe  env local
  */
-int openListenfd(const char *const port, int listenq = LISTEN_Q);
+int openListenFd(const char *const port, int listenq = LISTEN_Q);
 /**
  * @return ((isEND_OF_LINE, isEOF), recvCnt)
  * @return if recvCnt<0, error occure

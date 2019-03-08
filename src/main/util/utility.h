@@ -74,8 +74,7 @@ void bug(const char *const msg, bool willExit = true, int lineNum = -1);
 void bugWithErrno(const char *const msg, errno_t code, bool willExit = true);
 void warning(const char *const msg);
 void warningWithErrno(const char *const msg, errno_t code = errno);
-void mylog(const char *const msg);
-void fatalError(const char *const msg);
+void myLog(const char *const msg);
 
 /**
  * calculate the length of num
@@ -89,30 +88,14 @@ template <typename T> int numLen(T num, int base) {
     return ans;
 }
 
-/**
- * @param clearRes whether or not clear the res vector
- */
-void string_split(const std::string &str, std::vector<std::string> &res, char separate = 0,
-                  bool clearRes = true);
-/**
- * convert the src[i] to uppercase
- */
-void string_upper(char *src, int len);
-
 char char_upper(char c);
-
-/**
- * judege whether a str is number wich base is @param base
- * the base must be 1 to 36, or will be undefined
- */
-inline bool isNumber(const char *const str, int base);
 
 /**
  * for function who would like to retry for some errno
  * @param errnoArray is an errno_t array whose last element is 0
  * if the errnoArray[0]==0, then the action is unspecified
  */
-#define errnoRetryV_1(action, errnoArray, warningMsg, returnCode)                                  \
+#define errnoRetryV1(action, errnoArray, warningMsg, returnCode)                                  \
     do {                                                                                           \
         auto shouldContinue = [errnoArray](int code) {                                             \
             bool c = false;                                                                        \
@@ -136,7 +119,7 @@ inline bool isNumber(const char *const str, int base);
 /**
  * same as errnoRetryV_1 except use the returnCode as errno
  */
-#define errnoRetryV_2(action, errnoArray, warningMsg, returnCode)                                  \
+#define errnoRetryV2(action, errnoArray, warningMsg, returnCode)                                  \
     do {                                                                                           \
         auto shouldContinue = [errnoArray](int code) {                                             \
             bool c = false;                                                                        \
@@ -170,7 +153,6 @@ inline bool isNumber(const char *const str, int base);
     } while (0);
 
 byte *byteCpy(byte *dest, const byte *const src, int n);
-byte *byteCat(byte *dest, int ndest, const byte *const src, int nsrc);
 
 /**
  * the result should have enough size, or the behavious is undefined
@@ -210,19 +192,6 @@ bool checkFdType(int fd, int type, const char *const errorMsg, const char *const
 UserInfo getUidGidHomeDir(const char *const username);
 
 /**
- * @return whether succeed
- */
-bool setThreadUidAndGid(uid_t uid, gid_t gid);
-/**
- * @param src, the last element is 0 indicate the end of src
- * if src[i] is longer than MSG_MAX_LEN, the rest of it will not be use
- * the src[i] must be str(the last char is 0), or lead to may buffer overflow
- * @param dest will be clear if @param willClearDest is true
- *
- * MT-safe
- */
-std::string &constructMsg(const char *src[], std::string &dest, bool willClearDest = true);
-/**
  * @return (cmd, paramIndex)
  * paramIndex is the index to @param param which is the beginning of cmdParam
  *
@@ -231,8 +200,5 @@ std::string &constructMsg(const char *src[], std::string &dest, bool willClearDe
 PSI parseCmd(const char *param);
 
 bool setNonBlocking(int fd);
-bool setBlocking(int fd);
-bool isBlocking(int fd);
-bool wrapForSignalAction(int signum, sighandler_t handler);
 
 #endif

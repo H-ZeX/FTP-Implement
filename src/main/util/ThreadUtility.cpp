@@ -7,7 +7,7 @@
 *   Describe:
 *
 **********************************************************************************/
-#include "threadUtility.h"
+#include "ThreadUtility.h"
 
 #include <iostream>
 using namespace std;
@@ -61,7 +61,7 @@ bool condWait(pthread_cond_t &cond, pthread_mutex_t &mutex, int timeout) {
         timeoutTime.tv_sec += timeout;
         errno_t ea[] = {EINTR, 0};
         timeoutTime.tv_sec += 2;
-        errnoRetryV_2(pthread_cond_timedwait(&cond, &mutex, &timeoutTime), ea,
+        errnoRetryV2(pthread_cond_timedwait(&cond, &mutex, &timeoutTime), ea,
                       "condWait pthread_cond_timedwait failed", t);
         if (t != 0 && t != EINTR) {
             warningWithErrno("condWait pthread_cond_timedwait failed", t);

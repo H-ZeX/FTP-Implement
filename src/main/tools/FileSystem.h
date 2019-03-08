@@ -10,9 +10,9 @@
 #ifndef __FILE_SYSTEM_H__
 #define __FILE_SYSTEM_H__
 
-#include "src/util/def.h"
-#include "ls.h"
-#include "src/util/utility.h"
+#include "src/main/util/def.h"
+#include "List.h"
+#include "src/main/util/utility.h"
 
 using namespace std;
 

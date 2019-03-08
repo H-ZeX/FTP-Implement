@@ -8,9 +8,9 @@
 *
 **********************************************************************************/
 
-#include "src/util/def.h"
-#include "src/util/threadUtility.h"
-#include "src/util/utility.h"
+#include "src/main/util/def.h"
+#include "src/main/util/ThreadUtility.h"
+#include "src/main/util/utility.h"
 #include <atomic>
 #include <pthread.h>
 #include <queue>

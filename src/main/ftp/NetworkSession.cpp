@@ -7,7 +7,7 @@
 *   Describe:
 *
 **********************************************************************************/
-#include "networkSession.h"
+#include "NetworkSession.h"
 
 NetworkSession::NetworkSession() {
     this->cmdFd = -1;
@@ -36,7 +36,7 @@ PBI NetworkSession::openDataListen() {
     int port;
     for (int i = 0; i < 10; i++) {
         port = rand() % (65536 - 1024) + 1024;
-        int t = openListenfd(std::to_string(port).c_str(), 1);
+        int t = openListenFd(std::to_string(port).c_str(), 1);
         if (t >= 0) {
             this->dataListenFd = t;
             break;
@@ -51,7 +51,7 @@ bool NetworkSession::acceptDataConnect() {
 }
 
 bool NetworkSession::openDataConnection(const char *const hostname, const char *port) {
-    this->dataFd = openClientfd(hostname, port);
+    this->dataFd = openClientFd(hostname, port);
     return this->dataFd >= 0;
 }
 

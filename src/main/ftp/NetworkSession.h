@@ -9,7 +9,7 @@
 **********************************************************************************/
 
 #include "src/util/def.h"
-#include "src/util/netUtility.h"
+#include "src/util/NetUtility.h"
 #include "src/util/utility.h"
 #include <cstdlib>
 #include <ctime>

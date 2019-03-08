@@ -7,7 +7,7 @@
 *   Describe:
 *
 **********************************************************************************/
-#include "netUtility.h"
+#include "NetUtility.h"
 #include <iostream>
 using namespace std;
 
@@ -17,77 +17,77 @@ using namespace std;
  * @return if success, return file descriptor
  * @return -6 accept connect fail
  */
-int acceptConnect(int listenfd) {
+int acceptConnect(int listenFd) {
     char hostname[HOSTNAME_MAX_LEN], port[PORT_MAX_LEN];
-    sockaddr_storage clientaddr;
-    socklen_t clientlen = sizeof(clientaddr);
-    int connfd;
+    sockaddr_storage clientAddr{};
+    socklen_t clientAddrSize = sizeof(clientAddr);
+    int connectionFd;
     int ppp[] = {EINTR, 0};
-    errnoRetryV_1(accept(listenfd, (SA *)&clientaddr, &clientlen), ppp, "acceptConnect failed",
-                  connfd);
-    if (connfd < 0) {
+    errnoRetryV1(accept(listenFd, (SA *)&clientAddr, &clientAddrSize), ppp, "acceptConnect failed",
+                  connectionFd);
+    if (connectionFd < 0) {
         warningWithErrno("acceptConnect failed");
         return ACCEPT_CONNECT_FAIL;
     }
     // getnameinfo MT-safe env local
-    int r = getnameinfo((SA *)&clientaddr, clientlen, hostname, HOSTNAME_MAX_LEN, port,
+    int r = getnameinfo((SA *)&clientAddr, clientAddrSize, hostname, HOSTNAME_MAX_LEN, port,
                         PORT_MAX_LEN, NI_NUMERICHOST);
     if (r != 0) {
         warningWithErrno("accepted connection successfully, get name info fail");
     } else {
-        mylog(("accepted connect from (" + std::string(hostname) + ", " + std::string(port) + ")")
-                  .c_str());
+        myLog(("accepted connect from (" + std::string(hostname) + ", " + std::string(port) + ")")
+                      .c_str());
     }
-    return connfd;
+    return connectionFd;
 }
 
 /**
  * @return -5 close failed (the function inside also use close)
- * @return -4 open_clientfd failed
- * @return -2 getaddrinfo failed
- * @return if succes, return file descriptor
+ * @return -4 open_clientFd failed
+ * @return -2 getAddrInfo failed
+ * @return if success, return file descriptor
  *
  * MT-safe  env local
  */
-int openClientfd(const char *const hostname, const char *const port) {
-    int clientfd, rc;
-    struct addrinfo hints, *listp, *p;
+int openClientFd(const char *const hostname, const char *const port) {
+    int clientFd, rc;
+    struct addrinfo hints{}, *list, *p;
     char errnoBuf[ERRNO_BUF_SIZE];
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_NUMERICSERV;
     hints.ai_flags |= AI_ADDRCONFIG;
-    if ((rc = getaddrinfo(hostname, port, &hints, &listp)) != 0) {
+    if ((rc = getaddrinfo(hostname, port, &hints, &list)) != 0) {
         sprintf(errnoBuf, "getaddrinfo failed (port %s): %s", port, gai_strerror(rc));
         warning(errnoBuf);
         return GET_ADDR_INFO_FAIL;
     }
-    for (p = listp; p; p = p->ai_next) {
-        if ((clientfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
+    for (p = list; p; p = p->ai_next) {
+        if ((clientFd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
             continue;
         }
         errno_t ppp[] = {EINTR, 0};
         int r;
-        errnoRetryV_1(connect(clientfd, p->ai_addr, p->ai_addrlen), ppp, "open_clientfd", r);
+        errnoRetryV1(connect(clientFd, p->ai_addr, p->ai_addrlen), ppp, "open_clientFd", r);
         if (r == 0) {
             break;
         } else {
             warningWithErrno("open_clientfd connect() failed");
         }
-        errnoRetryV_1(close(clientfd), ppp, "open_listenfd", r);
+        errnoRetryV1(close(clientFd), ppp, "open_listenfd", r);
         if (r < 0) {
             warningWithErrno("open_listenfd close() failed");
         }
     }
-    freeaddrinfo(listp);
+    freeaddrinfo(list);
     if (!p) {
         warning(("open client file descriptor on " + std::string(hostname) + " : " +
                  std::string(port) + " failed")
                     .c_str());
         return OPEN_CLIENT_FD_FAIL;
     } else {
-        return clientfd;
+        return clientFd;
     }
 }
 
@@ -99,9 +99,9 @@ int openClientfd(const char *const hostname, const char *const port) {
  *
  * MT-safe  env local
  */
-int openListenfd(const char *const port, int listenq) {
-    struct addrinfo hints, *listp, *p;
-    int listenfd, rc, optval = 1;
+int openListenFd(const char *const port, int listenq) {
+    struct addrinfo hints{}, *listp, *p;
+    int listenfd = 0, rc, optval = 1;
     char tmpBuf[ERRNO_BUF_SIZE];
 
     memset(&hints, 0, sizeof(struct addrinfo));
@@ -109,7 +109,7 @@ int openListenfd(const char *const port, int listenq) {
     hints.ai_flags = AI_PASSIVE | AI_ADDRCONFIG;
     hints.ai_flags |= AI_NUMERICSERV;
     // getaddrinfo is MT-safe env local
-    if ((rc = getaddrinfo(NULL, port, &hints, &listp)) != 0) {
+    if ((rc = getaddrinfo(nullptr, port, &hints, &listp)) != 0) {
         sprintf(tmpBuf, "open_listenfd getaddrinfo() failed (port %s): %s", port, gai_strerror(rc));
         warning(tmpBuf);
         return GET_ADDR_INFO_FAIL;
@@ -135,7 +135,7 @@ int openListenfd(const char *const port, int listenq) {
         warningWithErrno("open_listenfd listen() failed");
         int r;
         errno_t ppp[] = {EINTR, 0};
-        errnoRetryV_1(close(listenfd), ppp, "open_listenfd close() failed", r);
+        errnoRetryV1(close(listenfd), ppp, "open_listenfd close() failed", r);
         if (r < 0) {
             warningWithErrno("open_listenfd close() failed");
         }
@@ -230,8 +230,8 @@ const string getThisMachineIp() {
     FILE *f = fopen("/proc/net/route", "r");
     while (fgets(line, 100, f)) {
         p = strtok_r(line, " \t", &save_1);
-        c = strtok_r(NULL, " \t", &save_1);
-        if (p != NULL && c != NULL) {
+        c = strtok_r(nullptr, " \t", &save_1);
+        if (p != nullptr && c != nullptr) {
             if (strncmp(c, "00000000", 8) == 0) {
                 break;
             }
@@ -253,7 +253,7 @@ const string getThisMachineIp() {
         if (strcmp(ifa->ifa_name, p) != 0 || family != fm) {
             continue;
         }
-        int s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0,
+        int s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, nullptr, 0,
                             NI_NUMERICHOST);
         if (s != 0) {
             snprintf(buf, ERRNO_BUF_SIZE, "getThisMachineIp getnameinfo() failed: %s",
