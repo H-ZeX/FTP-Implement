@@ -39,7 +39,7 @@
 /**
  * MT-safe
  */
-class List {
+class ListFiles {
     /**
      * return 1 if can't opendir
      * return 2 if error occurs when call readdir
@@ -70,7 +70,7 @@ class List {
         TData data, *res;
         int t;
         errno_t ppp[] = {EINTR, ENFILE, ENOMEM, EMFILE, 0};
-        retryWrapV2(handler(id, &data, buf, bufSize, &res), ppp, "List::id2name failed", t);
+        retryWrapV2(handler(id, &data, buf, bufSize, &res), ppp, "ListFiles::id2name failed", t);
         if (res != NULL) {
             return res->*ptr;
         } else {

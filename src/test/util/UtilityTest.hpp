@@ -143,35 +143,144 @@ public:
         kill(getpid(), SIGINT);
     }
 
-    static void testNetwork(const char *const listenPort) {
-        int listenFd = openListenFd(listenPort);
+    static void testNetworkAndReadLine(const char *const listenPort) {
+        const int testCnt = 1024;
+        const int maxBufSize = 1024;
+        const int maxMsgLen = 1024 * 10;
+        const int maxLineLen = 100;
+
+        const int listenFd = openListenFd(listenPort);
         assert(listenFd >= 3);
-        string thisMachineIP = getThisMachineIp();
-        int clientFd = openClientFd(thisMachineIP.c_str(), listenPort);
-        assert(clientFd >= 3 && clientFd != listenFd);
-        int ac1 = acceptConnect(listenFd);
-        assert(ac1 >= 3 && ac1 != clientFd && ac1 != listenFd);
-        string msg = "testMsg\r\n";
-        writeAllData(clientFd, msg.c_str(), msg.size());
-        char buf[100];
+        const string thisMachineIP = getThisMachineIp();
+
+        // TODO, only test when the buf can contain the full line.
+        // should add test that the buf can not contain one line.
+        for (int i = 0; i < testCnt; i++) {
+            const int bufSize = static_cast<int>(random() % maxBufSize + maxLineLen);
+            const int msgLen = static_cast<int>(random() % maxMsgLen);
+            const string msg = renderString(msgLen, maxLineLen);
+
+            vector<int> spIndex;
+            spIndex.push_back(static_cast<int &&>(msg.find("\r\n", 0)));
+            if (*spIndex.rbegin() != string::npos) {
+                int index = *spIndex.rbegin() + 2;
+                while (index >= 0 && index < msg.size()) {
+                    int t = static_cast<int &&>(msg.find("\r\n", index));
+                    if (t == string::npos) {
+                        break;
+                    }
+                    spIndex.push_back(t);
+                    index = *spIndex.rbegin() + 2;
+                }
+            } else {
+                spIndex.clear();
+            };
+
+            const int clientFd = openClientFd(thisMachineIP.c_str(), listenPort);
+            assert(clientFd >= 3 && clientFd != listenFd);
+            const int ac1 = acceptConnect(listenFd);
+            assert(ac1 >= 3 && ac1 != clientFd && ac1 != listenFd);
+
+            assert(writeAllData(clientFd, msg.c_str(), msg.size()));
+            assert(closeFileDescriptor(clientFd));
+
+            char buf[bufSize];
+            ReadBuf cache;
+            int before = 0;
+            for (int j : spIndex) {
+                ReadLineReturnValue value = readLine(ac1, buf, static_cast<unsigned long>(bufSize - 1), cache);
+                if ((value.recvCnt != (j - before))) {
+                    for (int p : spIndex) {
+                        cerr << p << "\t";
+                    }
+                    cerr << endl;
+                    outputStr(msg);
+                    cerr << (value.recvCnt) << "\t"
+                         << (j - before) << "\t"
+                         << j << "\t"
+                         << before << "\t"
+                         << endl
+                         << buf << endl
+                         << bufSize << endl;
+                }
+                assert(value.recvCnt == (j - before));
+                // if EndOfLine is true, EOF is always false;
+                assert(!value.isEOF);
+                assert(value.isEndOfLine);
+                assert(value.success);
+                before = j + 2;
+            }
+            ReadLineReturnValue value = readLine(ac1, buf, static_cast<unsigned long>(bufSize - 1), cache);
+            assert(!value.success);
+            assert(!value.isEndOfLine);
+            assert(value.isEOF);
+            assert(value.recvCnt == (msg.size() - before));
+        }
+    }
+
+    static void testConsumeUntilEndOfLine() {
+        int fd[2];
+        pipe(fd);
+        string msg = "testMsg\r\ntestMsgTestMsg\r\n";
+        write(fd[1], msg.c_str(), msg.size());
         ReadBuf cache;
-        RecvLineReturnValue value = readLine(ac1, buf, 100 - 1, cache);
-        assert(value.recvCnt == msg.size());
-        assert(value.isEndOfLine);
-        assert(!value.isEOF);
-        assert(value.success);
-        readLine(ac1, buf, 100 - 1, cache);
-        assert(value.recvCnt == 0);
-        assert(value.isEOF);
-        assert(!value.isEndOfLine);
-        assert(!value.success);
+        assert(!consumeByteUntilEndOfLine(fd[0], cache));
+        char buf[100];
+        readLine(fd[0], buf, 100 - 1, cache);
+        assert(string(buf)=="testMsgTestMsg");
     }
 
-    static void testNetwork() {
-
+    static void testGetUidGidHomeDir() {
+        UserInfo info = getUidGidHomeDir("hzx");
+        cout << info.cmdIp << endl
+             << info.cmdPort << endl
+             << info.gid << endl
+             << info.homeDir << endl
+             << info.isValid << endl
+             << info.uid << endl
+             << info.username << endl;
     }
+
 
 private:
+
+    static void outputStr(string s) {
+        for (char i : s) {
+            if (i == '\r') {
+                cerr << "\\" << "r";
+            } else if (i == '\n') {
+                cerr << "\\" << "n";
+            } else {
+                cerr << i;
+            }
+        }
+        cerr << endl;
+    }
+
+    static string renderString(int len, int maxLineLen) {
+        string result;
+        int lineLen = 0;
+        for (int i = 0; i < len; i++) {
+            int a = static_cast<int>(random() % 5);
+            if (a == 0 || maxLineLen - lineLen < 5) {
+                result += "\r\n";
+                lineLen = 0;
+            } else if (a == 1) {
+                result += "\n";
+                lineLen += 1;
+            } else if (a == 2) {
+                result += "\r";
+                lineLen += 1;
+            } else {
+                // should render less than 4 char, or the lineLen judge will fail
+                string s = std::to_string(random() % 1000);
+                assert(s.size() <= 3);
+                result += s;
+                lineLen += s.size();
+            }
+        }
+        return result;
+    }
 
     static void *runner(void *argv) {
         cout << "subThread" << endl;

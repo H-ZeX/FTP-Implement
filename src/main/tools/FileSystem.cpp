@@ -11,7 +11,7 @@
 #include "FileSystem.h"
 
 bool FileSystem::ls(const char *const pathname, std::string &result) {
-    return isAbsolute(pathname) && (List::ls(pathname, result) == 0);
+    return isAbsolute(pathname) && (ListFiles::ls(pathname, result) == 0);
 }
 bool FileSystem::delFile(const char *const pathname) {
     return isAbsolute(pathname) && del(pathname, false);

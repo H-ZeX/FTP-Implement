@@ -113,7 +113,7 @@ int openListenFd(const char *port, int backLog = BACK_LOG) {
             continue;
         }
         int r = setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (const void *) &opt, sizeof(int));
-        if (r == 0) {
+        if (r != 0) {
             continue;
         }
         if (bind(listenFd, p->ai_addr, p->ai_addrlen) == 0) {

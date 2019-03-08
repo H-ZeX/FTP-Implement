@@ -7,13 +7,13 @@
 *   Describe:
 *
 **********************************************************************************/
-#include "List.h"
+#include "ListFiles.h"
 
-map<int, const char *const> List::monName{{0, "Jan"},  {1, "Feb"},  {2, "Mar"},  {3, "Apr"},
+map<int, const char *const> ListFiles::monName{{0, "Jan"},  {1, "Feb"},  {2, "Mar"},  {3, "Apr"},
                                           {4, "May"},  {5, "June"}, {6, "July"}, {7, "Aug"},
                                           {8, "Sept"}, {9, "Oct"}, {10, "Nov"}, {11, "Dec"}};
 
-int List::ls(const char *const path, std::string &result) {
+int ListFiles::ls(const char *const path, std::string &result) {
     char errnoBuf[ERRNO_BUF_SIZE];
     struct stat statbuf;
     if (lstat(path, &statbuf) < 0) {
@@ -27,7 +27,7 @@ int List::ls(const char *const path, std::string &result) {
     }
 }
 
-int List::lsNotDir(const char *const path, std::string &result) {
+int ListFiles::lsNotDir(const char *const path, std::string &result) {
     result.clear();
     struct stat statbuf;
     char errnoBuf[ERRNO_BUF_SIZE];
@@ -42,17 +42,17 @@ int List::lsNotDir(const char *const path, std::string &result) {
     formatMode(statbuf.st_mode, result);
     result += " ";
     if (snprintf(printBuf, bufSize + 1, "%s", uid2username(statbuf.st_uid).c_str()) > bufSize) {
-        bug("List::lsNotDir username too long", false);
+        bug("ListFiles::lsNotDir username too long", false);
     }
     result += printBuf;
     result += " ";
     if (snprintf(printBuf, bufSize + 1, "%s", gid2groupname(statbuf.st_gid).c_str()) > bufSize) {
-        bug("List::lsNotDir groupname too long", false);
+        bug("ListFiles::lsNotDir groupname too long", false);
     }
     result += printBuf;
     result += " ";
     if (snprintf(printBuf, bufSize + 1, "%llu", (unsigned long long)statbuf.st_size) > bufSize) {
-        bug("List::lsNotDir file size too large", false);
+        bug("ListFiles::lsNotDir file size too large", false);
     }
     result += printBuf;
     result += " ";
@@ -64,7 +64,7 @@ int List::lsNotDir(const char *const path, std::string &result) {
     return SUCCESS;
 }
 
-int List::lsDir(const char *const path, std::string &result) {
+int ListFiles::lsDir(const char *const path, std::string &result) {
     result.clear();
     // if pathname is too long, it'll override other stack variable
     // althrough stat func will return error and set errno == ENAMETOOLONG
@@ -104,7 +104,7 @@ int List::lsDir(const char *const path, std::string &result) {
         maxSize = std::max<off_t>(maxSize, statbuf.st_size);
     }
     if (closedir(streamp) < 0) {
-        bug("List::lsDir close dir error");
+        bug("ListFiles::lsDir close dir error");
     }
     streamp = opendir(path);
     if (!streamp) {
@@ -113,10 +113,10 @@ int List::lsDir(const char *const path, std::string &result) {
     }
     char fmtName[20], fmtSize[20], printBuf[maxNameLen + 10];
     if (snprintf(fmtName, 20, "%%%llus", (ull_t)maxNameLen) > 19) {
-        bug("List::lsDir buffer for fmName too short", false);
+        bug("ListFiles::lsDir buffer for fmName too short", false);
     }
     if (snprintf(fmtSize, 20, "%%%dllu", numLen<ull_t>((ull_t)maxSize, 10)) > 19) {
-        bug("List::lsDir buffer for fmtSize to short", false);
+        bug("ListFiles::lsDir buffer for fmtSize to short", false);
     }
     errno = 0;
     for (dirent *dep = readdir(streamp);; errno = 0, dep = readdir(streamp)) {
@@ -135,20 +135,20 @@ int List::lsDir(const char *const path, std::string &result) {
         result += " ";
         if (snprintf(printBuf, maxNameLen + 1, fmtName, uid2username(statbuf.st_uid).c_str()) >
             maxNameLen) {
-            bug("List::lsDir username too long", false);
+            bug("ListFiles::lsDir username too long", false);
         }
         result += printBuf;
         result += " ";
         if (snprintf(printBuf, maxNameLen + 1, fmtName, gid2groupname(statbuf.st_gid).c_str()) >
             maxNameLen) {
-            bug("List::lsDir groupname too long", false);
+            bug("ListFiles::lsDir groupname too long", false);
         }
         result += printBuf;
         result += " ";
         int __k = numLen<ull_t>((ull_t)maxSize, 10);
         char printSizeBuf[__k + 1];
         if (snprintf(printSizeBuf, __k + 1, fmtSize, (ull_t)statbuf.st_size) > __k) {
-            bug("List::lsDir file size too large", false);
+            bug("ListFiles::lsDir file size too large", false);
         }
         result += printSizeBuf;
         result += " ";
@@ -160,15 +160,15 @@ int List::lsDir(const char *const path, std::string &result) {
     return SUCCESS;
 }
 
-std::string List::uid2username(uid_t id) {
+std::string ListFiles::uid2username(uid_t id) {
     return id2name<uid_t, passwd, getUid_t, char * passwd::*>(id, getpwuid_r, &passwd::pw_name);
 }
 
-std::string List::gid2groupname(gid_t id) {
+std::string ListFiles::gid2groupname(gid_t id) {
     return id2name<gid_t, group, getGid_t, char * group::*>(id, getgrgid_r, &group::gr_name);
 }
 
-void List::formatMode(int mode, std::string &result) {
+void ListFiles::formatMode(int mode, std::string &result) {
     switch (mode & S_IFMT) {
     case S_IFBLK:
         result.push_back('b');
@@ -205,11 +205,11 @@ void List::formatMode(int mode, std::string &result) {
         mark >>= 1;
     }
 }
-void List::formatTime(const time_t *timep, string &result) {
+void ListFiles::formatTime(const time_t *timep, string &result) {
     struct tm time, *res;
     res = localtime_r(timep, &time);
     if (res == nullptr) {
-        warningWithErrno("List::formatTime");
+        warningWithErrno("ListFiles::formatTime");
         result += std::to_string(0);
         return;
     }

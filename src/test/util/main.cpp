@@ -12,5 +12,7 @@ int main() {
     // UtilityTest::testMutex();
     // UtilityTest::testThread();
     // UtilityTest::testSignal();
-    UtilityTest::testNetwork();
+    // UtilityTest::testNetworkAndReadLine("8083");
+    // UtilityTest::testConsumeUntilEndOfLine();
+    UtilityTest::testGetUidGidHomeDir();
 }

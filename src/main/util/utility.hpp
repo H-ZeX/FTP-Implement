@@ -184,7 +184,7 @@ int numLen(T num, int base) {
     return ans;
 }
 
-char char_upper(char c) {
+char charUpper(char c) {
     return (char) ((c >= 'a' && c <= +'z') * (-0x20) + c);
 }
 
@@ -327,27 +327,40 @@ UserInfo getUidGidHomeDir(const char *const username) {
 }
 
 
-struct RecvLineReturnValue {
+struct ReadLineReturnValue {
+    /**
+     * whether successfully read a line.
+     */
     bool success = false;
     bool isEndOfLine = false;
     bool isEOF = false;
+    /**
+     * this time's recv cnt, not include CRLF (if has CRLF)
+     */
     size_t recvCnt = 0;
 
-    RecvLineReturnValue(bool success, bool isEndOfLine, bool isEOF, size_t recvCnt)
+    ReadLineReturnValue(bool success, bool isEndOfLine, bool isEOF, size_t recvCnt)
             : success(success),
               isEndOfLine(isEndOfLine),
               isEOF(isEOF),
               recvCnt(recvCnt) {}
 
-    explicit RecvLineReturnValue(bool success)
+    explicit ReadLineReturnValue(bool success)
             : success(success) {}
 };
 
 
 /**
  * MT-safe
+ *
+ * if EndOfLine is true, then EOF will always be false
+ *
+ * @param size the buf len should >= size+1, after read, the buf[size] is 0.
+ * if the size is too small, then may not contain one full line.
+ * @param buf store the result, the index after the line's last char is 0.
+ * the buf does NOT contain the CRLF
  */
-RecvLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cache) {
+ReadLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cache) {
     assert(fd >= 3 && buf != nullptr && size > 0);
     auto isEndOfLine = [](const char *const ptr) {
         bool ans = true;
@@ -357,19 +370,20 @@ RecvLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cac
         return ans;
     };
     ssize_t t = 0, cnt = 0;
-    while (cnt < size && ((t = readWithBuf(fd, buf, 1, cache)) > 0
-                          || errno == EAGAIN
-                          || errno == EWOULDBLOCK)) {
+    while (cnt < size && (t = readWithBuf(fd, buf, 1, cache)) > 0) {
         buf++;
         cnt++;
         if (cnt >= SIZEOF_END_OF_LINE && isEndOfLine(buf - SIZEOF_END_OF_LINE)) {
             *(buf - SIZEOF_END_OF_LINE) = 0;
-            return {true, true, false, static_cast<unsigned long>(cnt)};
+            return {true, true, false, static_cast<unsigned long>(cnt-2)};
         }
     }
+    // error occur or EOF occur.
+    // for that size>0, so the readWithBuf will be called at least one time
     if (t <= 0) {
+        *buf = 0;
         // if errno==EBADF, EINVAL, EIO, then treat as EOF
-        return {false, false, true, 0};
+        return {false, false, errno != EAGAIN && errno != EWOULDBLOCK, static_cast<size_t>(cnt)};
     }
     // when come here, means the size is run out
     assert(cnt == size);
@@ -378,10 +392,12 @@ RecvLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cac
 }
 
 /**
+ *
  * MT-safe.
  * @return true if EOF occur
  */
 bool consumeByteUntilEndOfLine(int fd, ReadBuf &cache) {
+    // TODO, this function only work when the str doesn't contain alone CR or LR
     assert(fd >= 3);
     byte buf[10];
     int t;

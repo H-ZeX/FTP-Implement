@@ -102,7 +102,7 @@ private:
         }
         string cmd;
         while (param[i] && isalpha(param[i])) {
-            cmd.push_back(char_upper(param[i]));
+            cmd.push_back(charUpper(param[i]));
             i++;
         }
         while (param[i] && isspace(param[i])) {

@@ -13,8 +13,8 @@ set(SRC
         src/main/tools/FileSystem.h
         src/main/ftp/FTP.cpp
         src/main/ftp/FTP.h
-        src/main/tools/List.cpp
-        src/main/tools/List.h
+        src/main/tools/ListFiles.cpp
+        src/main/tools/ListFiles.h
         src/main/main.cpp
         src/main/util/NetUtility.hpp
         src/main/ftp/NetworkSession.cpp
