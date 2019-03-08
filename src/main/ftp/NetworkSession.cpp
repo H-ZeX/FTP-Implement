@@ -8,6 +8,7 @@
 *
 **********************************************************************************/
 #include "NetworkSession.h"
+#include "utility.hpp"
 
 NetworkSession::NetworkSession() {
     this->cmdFd = -1;
@@ -55,23 +56,18 @@ bool NetworkSession::openDataConnection(const char *const hostname, const char *
     return this->dataFd >= 0;
 }
 
-bool NetworkSession::closeCmdConnect() {
-    fprintf(stderr, "NetworkSession::closeFileDescriptor cmd fd == %d\n", this->cmdFd);
-    return closeFileDescriptor(this->cmdFd, "NetworkSession cmdFd");
-}
-
 bool NetworkSession::closeDataListen() {
-    return closeFileDescriptor(this->dataListenFd, "NetworkSession data listen fd");
+    return closeFileDescriptor(this->dataListenFd);
 }
 
 bool NetworkSession::closeDataConnect() {
-    return closeFileDescriptor(this->dataFd, "NetworkSession data connect fd");
+    return closeFileDescriptor(this->dataFd);
 }
 
 PPI NetworkSession::recvCmd(char *buf, size_t bufSize) {
-    PPI p = recvline(this->cmdFd, buf, bufSize, bufForCmd);
+    PPI p = readLine(this->cmdFd, buf, bufSize, bufForCmd);
     if (!p.first.first) {
-        bool t = recvToEOL(this->cmdFd, bufForCmd);
+        bool t = consumeByteUntilEndOfLine(this->cmdFd, bufForCmd);
         return PPI(PBB(false, t), p.second);
     } else {
         return p;
@@ -145,7 +141,6 @@ bool NetworkSession::recvAndWriteFile(const char *const path) {
 }
 
 NetworkSession::~NetworkSession() {
-//    this->closeCmdConnect();
     this->closeDataListen();
     this->closeDataConnect();
 }

@@ -115,7 +115,7 @@ void *ThreadPool::worker(void *argv) {
         }
         // when return from cond wait, should check whether the cond is still true
         while (pool.taskQue.empty() && pool.isShutdown.load() == RUNNING) {
-            if (!condWait(pool.notify, pool.taskMutex)) {
+            if (!conditionWait(pool.notify, pool.taskMutex)) {
                 // if cond wait fail, exit this thread
                 mutexUnlock(pool.taskMutex);
                 atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
@@ -123,7 +123,7 @@ void *ThreadPool::worker(void *argv) {
             }
         }
         // for that only the shutdown func call broadcast,
-        // so if taskQue is empty, and the condWait return true,
+        // so if taskQue is empty, and the conditionWait return true,
         // one of these check will success
         if ((pool.isShutdown.load() == IMMEDIATE_SHUTDOWN) ||
             (pool.isShutdown.load() == GRACEFUL_SHUTDOWN && pool.taskQue.empty())) {
@@ -161,7 +161,7 @@ ThreadPool::~ThreadPool() {
     }
     mutexUnlock(threadArrayMutex);
 
-    condDestroy(this->notify);
+    conditionDestroy(this->notify);
     mutexDestroy(this->taskMutex);
     mutexDestroy(this->threadArrayMutex);
 }

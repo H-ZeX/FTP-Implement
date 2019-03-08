@@ -8,11 +8,12 @@
 *
 **********************************************************************************/
 
-#include "src/util/def.h"
-#include "src/util/NetUtility.h"
-#include "src/util/utility.h"
+#include "src/main/util/Def.hpp"
+#include "src/main/util/NetUtility.hpp"
+#include "src/main/util/utility.hpp"
 #include <cstdlib>
 #include <ctime>
+#include <src/main/util/Def.hpp>
 
 using std::pair;
 using std::string;
@@ -53,11 +54,6 @@ class NetworkSession {
      * @return ((isSuccess, isEOF), cnt)
      */
     PPI recvFromDataFd(byte *data, size_t len);
-
-    /**
-     * the cmd connect should only be call by de destructors
-     */
-    bool closeCmdConnect();
 
   private:
     int cmdFd;

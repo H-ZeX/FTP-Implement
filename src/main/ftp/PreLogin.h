@@ -10,11 +10,12 @@
 #ifndef __PRE_LOGIN_H__
 #define __PRE_LOGIN_H__
 
-#include "src/util/def.h"
-#include "src/util/utility.h"
+#include "src/main/util/utility.hpp"
 #include <crypt.h>
 #include <shadow.h>
 #include <string>
+#include <src/main/util/Def.hpp>
+
 using std::string;
 /**
  * @return (isValid, (uid_t, gid_t))

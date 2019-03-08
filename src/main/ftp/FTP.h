@@ -11,8 +11,8 @@
 #ifndef __FTP_H__
 #define __FTP_H__
 
-#include "src/util/def.h"
-#include "src/util/NetUtility.h"
+#include "src/main/util/Def.hpp"
+#include "src/main/util/NetUtility.hpp"
 #include "Session.h"
 #include "src/tools/ThreadPool.h"
 #include "src/util/utility.h"
@@ -287,7 +287,7 @@ private:
         if (epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr) < 0) {
             bugWithErrno(("FTP::destroySession EPOLL_CTL_DEL failed, fd: " + to_string(fd)).c_str(), errno, true);
         }
-        closeFileDescriptor(fd, "FTP::destroySession");
+        closeFileDescriptor(fd);
         mutexUnlock(userRecordMutex);
         atomic_fetch_sub<int>(currentFdCnt, 1);
     }

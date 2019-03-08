@@ -92,6 +92,26 @@ private:
     void init();
 
 private:
+    PSI parseCmd(const char *param) {
+        int i = 0;
+        while (param[i] && isspace(param[i])) {
+            i++;
+        }
+        if (param[i] == 0) {
+            return PSI("INVALID", 0);
+        }
+        string cmd;
+        while (param[i] && isalpha(param[i])) {
+            cmd.push_back(char_upper(param[i]));
+            i++;
+        }
+        while (param[i] && isspace(param[i])) {
+            i++;
+        }
+        return PSI(cmd, i);
+    }
+
+private:
     bool parsePortCmd(string param, string &ip, int &port);
 
     string makeAbsolutePath(const string &path);

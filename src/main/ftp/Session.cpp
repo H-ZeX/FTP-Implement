@@ -7,6 +7,7 @@
 *   Describe:
 *
 **********************************************************************************/
+#include <src/main/tools/FileSystem.h>
 #include "Session.h"
 
 Session::Session(int cmdFd,
@@ -185,23 +186,23 @@ void Session::list(int paramIndex) {
     bool success = false;
     if ((lastCmd != "PORT" && lastCmd != "PASV") || !isLastCmdSuccess) {
         msg = "425 Use PORT or PASV first." END_OF_LINE;
-    } else if (lastCmd == "PASV" && this->net.acceptDataConnect() == false) {
+    } else if (lastCmd == "PASV" && !this->net.acceptDataConnect()) {
         msg = "425 Failed to establish connection." END_OF_LINE;
     } else {
         msg = "150 Here comes the directory listing." END_OF_LINE;
         success = true;
     }
-    if (this->net.sendToCmdFd(msg, strlen(msg)) == false) {
+    if (!this->net.sendToCmdFd(msg, strlen(msg))) {
         this->close();
         return;
     }
-    if (success == false) {
+    if (!success) {
         break;
     }
     string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
     string res;
-    if (FileSystem::ls(path.c_str(), res) == true) {
-        if (this->net.sendToDataFd(res.c_str(), res.length()) == false) {
+    if (FileSystem::ls(path.c_str(), res)) {
+        if (!this->net.sendToDataFd(res.c_str(), res.length())) {
             msg = "425 Failed to establish connection." END_OF_LINE;
         } else {
             msg = "226 Directory send OK." END_OF_LINE;
@@ -209,7 +210,7 @@ void Session::list(int paramIndex) {
     } else {
         msg = "400 LIST Failed" END_OF_LINE;
     }
-    if (this->net.sendToCmdFd(msg, strlen(msg)) == false) {
+    if (!this->net.sendToCmdFd(msg, strlen(msg))) {
         this->close();
         return;
     }
@@ -248,13 +249,13 @@ void Session::mode(int paramIndex) {
 
 void Session::pass(int paramIndex) {
     const char *msg;
-    if (userInfo.isValid == true) {
+    if (userInfo.isValid) {
         msg = "230 Already logged in." END_OF_LINE;
         break;
     }
     string pass = string(this->cmdBuf).substr(paramIndex);
     userInfo = preLogin(userInfo.username.c_str(), pass.c_str());
-    if (userInfo.isValid == false) {
+    if (!userInfo.isValid) {
         msg = "530 Login incorrect." END_OF_LINE;
         usleep(LOGIN_INCORRECT_DELAY_SEC * 1000000);
     } else {
@@ -351,13 +352,13 @@ void Session::retr(int paramIndex) {
     string msg;
     bool success = false;
     string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-    if ((lastCmd != "PASV" && lastCmd != "PORT") || isLastCmdSuccess == false) {
+    if ((lastCmd != "PASV" && lastCmd != "PORT") || !isLastCmdSuccess) {
         msg = "425 Use PORT or PASV first." END_OF_LINE;
     } else {
         PBB isd = FileSystem::isDir(path.c_str());
         fprintf(stderr, "retr: %s %d %d %d", path.c_str(), isd.first, isd.second,
                 FileSystem::isExistsAndReadable(path.c_str()));
-        if (isd.first == false || isd.second == true ||
+        if (!isd.first || isd.second ||
             !(FileSystem::isExistsAndReadable(path.c_str()))) {
             msg = "550 Failed to open file." END_OF_LINE;
         } else {
@@ -365,21 +366,21 @@ void Session::retr(int paramIndex) {
             msg = ("150 Opening data connection for " + path + END_OF_LINE);
         }
     }
-    if (this->net.sendToCmdFd(msg.c_str(), msg.length()) == false) {
+    if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
         this->close();
         return;
     }
-    if (success == false) {
+    if (!success) {
         break;
     }
-    if (lastCmd == "PASV" && this->net.acceptDataConnect() == false) {
+    if (lastCmd == "PASV" && !this->net.acceptDataConnect()) {
         msg = "425 Failed to establish connection." END_OF_LINE;
-    } else if (this->net.sendFile(path.c_str()) == true) {
+    } else if (this->net.sendFile(path.c_str())) {
         msg = "226 Transfer complete." END_OF_LINE;
     } else {
         msg = "425 Failed to establish connection." END_OF_LINE;
     }
-    if (this->net.sendToCmdFd(msg.c_str(), msg.length()) == false) {
+    if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
         this->close();
         return;
     }
@@ -429,28 +430,28 @@ void Session::stat(int paramIndex) {
 void Session::stor(int paramIndex) {
     const char *msg;
     bool success = false;
-    if ((lastCmd != "PORT" && lastCmd != "PASV") || isLastCmdSuccess == false) {
+    if ((lastCmd != "PORT" && lastCmd != "PASV") || !isLastCmdSuccess) {
         msg = "425 Use PORT or PASV first." END_OF_LINE;
-    } else if (lastCmd == "PASV" && this->net.acceptDataConnect() == false) {
+    } else if (lastCmd == "PASV" && !this->net.acceptDataConnect()) {
         msg = "425 failed to establish connection" END_OF_LINE;
     } else {
         msg = "150 Ok to send data." END_OF_LINE;
         success = true;
     }
-    if (this->net.sendToCmdFd(msg, strlen(msg)) == false) {
+    if (!this->net.sendToCmdFd(msg, strlen(msg))) {
         this->close();
         return;
     }
-    if (success == false) {
+    if (!success) {
         break;
     }
     string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-    if (this->net.recvAndWriteFile(path.c_str()) == false) {
+    if (!this->net.recvAndWriteFile(path.c_str())) {
         msg = "400 STOR Failed" END_OF_LINE;
     } else {
         msg = "226 Transfer complete" END_OF_LINE;
     }
-    if (this->net.sendToCmdFd(msg, strlen(msg)) == false) {
+    if (!this->net.sendToCmdFd(msg, strlen(msg))) {
         this->close();
         return;
     }

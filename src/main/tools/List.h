@@ -11,8 +11,8 @@
 #ifndef __LS_H__
 #define __LS_H__
 
-#include "src/main/util/def.h"
-#include "src/main/util/utility.h"
+#include "src/main/util/Def.hpp"
+#include "src/main/util/utility.hpp"
 #include <ctype.h>
 #include <dirent.h>
 #include <dirent.h>
@@ -70,7 +70,7 @@ class List {
         TData data, *res;
         int t;
         errno_t ppp[] = {EINTR, ENFILE, ENOMEM, EMFILE, 0};
-        errnoRetryV2(handler(id, &data, buf, bufSize, &res), ppp, "List::id2name failed", t);
+        retryWrapV2(handler(id, &data, buf, bufSize, &res), ppp, "List::id2name failed", t);
         if (res != NULL) {
             return res->*ptr;
         } else {

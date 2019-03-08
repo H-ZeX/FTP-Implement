@@ -20,7 +20,8 @@ using std::string;
 using std::vector;
 using std::exception;
 
-#define BT_BUF_SIZE 100 // the backtrace's buf size
+// the backtrace's buf size
+#define BT_BUF_SIZE 100
 #define UN_DETERMINATE_LIMIT 0x1000
 #define ERRNO_BUF_SIZE 256
 #define WARNING_BUF_SIZE (2 * ERRNO_BUF_SIZE)
@@ -39,7 +40,6 @@ using std::exception;
  * the $6$salt$encrypted is an SHA-512 encoded one, "salt" stands for the up to 16  characters
  */
 #define ENCRYPTED_KEY_MAX_LEN 256
-#define MSG_MAX_LEN 8096
 
 /**
  * exit code
@@ -48,23 +48,7 @@ using std::exception;
 #define OPEN_MAINFD_ERROR 60
 #define EPOLL_CREATE_ERROR 70
 #define EPOLL_ADD_MAINFD_ERROR 80
-#define EPOLL_WAIT_ERROR 90
-#define FATAL_ERROR_EXIT 110
 
-/**
- * return code
- */
-#define READ_FAIL -8
-#define ACCEPT_CONNECT_FAIL -6
-#define OPEN_CLIENT_FD_CLOSE_FAIL -5
-#define OPEN_CLIENT_FD_FAIL -4
-#define OPEN_LISTEN_FD_FAIL -3
-#define GET_ADDR_INFO_FAIL -2
-#define OPEN_LISTEN_FD_CLOSE_FAIL -1
-#define SUCCESS 0
-#define OPEN_DIR_FAIL 1
-#define READDIR_FAIL 2
-#define STAT_FAIL 3
 /**
  * typedef
  */
@@ -117,25 +101,29 @@ struct UserInfo {
         this->gid = static_cast<gid_t>(-1);
     }
 
-    UserInfo(bool is, uid_t u, gid_t g, const string &ip, const string &port, const string &user,
-             const char *const hd) {
-        this->isValid = is;
-        this->uid = u;
-        this->gid = g;
+    UserInfo(bool isValid, uid_t uid, gid_t gid, const string &ip, const string &port, const string &user,
+             const char *const homeDir) {
+        this->isValid = isValid;
+        this->uid = uid;
+        this->gid = gid;
         this->cmdIp = ip;
         this->cmdPort = port;
         this->username = user;
-        this->homeDir = hd;
+        this->homeDir = homeDir;
     }
 };
 
 struct ReadBuf {
+    const size_t size = READ_BUF_SIZE;
     byte buf[READ_BUF_SIZE]{};
-    byte *readPtr; // point to the start of haven't read substr
-    int reRCap; //  reRCap is remainder read capacity
+    // point to the start of haven't read substr
+    byte *next;
+    //  remainderSize is size of byte that can be read
+    int remainderSize;
+
     ReadBuf() {
-        this->readPtr = buf;
-        this->reRCap = 0;
+        this->next = buf;
+        this->remainderSize = 0;
     }
 };
 
@@ -154,11 +142,8 @@ class EndOfSessionException : public exception {
 /**
  * others
  */
-#define RETRY_TIME 5
 #define END_OF_LINE "\r\n"
 #define SIZEOF_END_OF_LINE (sizeof("\r\n") / sizeof(char) - 1)
-// max char cnt each line without eol
-#define MCEL_WITHOUT_EOL (80 - SIZEOF_END_OF_LINE)
-#define LISTEN_Q 10240
+#define BACK_LOG 20
 
 #endif
