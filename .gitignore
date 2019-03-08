@@ -9,6 +9,8 @@ CMakeCache.txt
 FTPServer
 
 Makefile
+
+FTPServer
 FTPServer.cbp
 
 .*.sw*
@@ -21,3 +23,6 @@ gradlew
 gradlew.bat
 out/
 build/
+Testing/
+CTestTestfile.cmake
+UtilTest
