@@ -11,7 +11,6 @@
 #define __UTILITY_H__
 
 #include "Def.hpp"
-#include "Utility.hpp"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -39,13 +38,13 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
+#include <cassert>
 #include <sys/time.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
-
 #include <iostream>
 
 using namespace std;

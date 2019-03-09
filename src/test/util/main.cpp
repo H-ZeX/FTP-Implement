@@ -5,7 +5,7 @@
 #include "UtilityTest.hpp"
 
 int main() {
-    // UtilityTest::testBug();
+    UtilityTest::testBug();
     // UtilityTest::testBugWithErrno();
     // UtilityTest::testMereString();
     // UtilityTest::testNumLen();

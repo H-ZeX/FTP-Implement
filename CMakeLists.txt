@@ -30,15 +30,19 @@ set(SRC
 set(UtilTestSrc
         src/test/util/main.cpp
         src/test/util/UtilityTest.hpp
-        src/main/util/Utility.hpp
         )
+set(ToolsTestSrc
+        src/test/tools/main.cpp
+        src/test/tools/ToolsTest.hpp)
 
 add_executable(${PROJECT_NAME} ${SRC})
 add_executable(UtilTest ${UtilTestSrc})
+add_executable(ToolsTest ${ToolsTestSrc})
 
 enable_testing()
 add_test(UTest UtilTest)
+add_test(TTest ToolsTest)
 
 target_link_libraries(${PROJECT_NAME} -lpthread -rdynamic -lcrypt)
-
 target_link_libraries(UtilTest -lpthread -rdynamic)
+target_link_libraries(ToolsTest -lpthread -rdynamic)

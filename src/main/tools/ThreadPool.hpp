@@ -33,34 +33,35 @@ class ThreadPool;
  * will it be visible to other thread after init by control thread ?
  * So I use an mutex, act as the memory barrier.
  *
- * Make sure that, the mutex and sigToBlock MUST be init by ThreadPool's constructor.
- * And poolPtr MUST be init in `start` func, to avoid the escape of `this` point.
+ * Important!
+ * poolPtr MUST be init in `start` func, to avoid the escape of `this` point.
+ * MUST NOT modify poolPtr and sigToBlock after they are init,
+ * except in the destructor
  *
  * TODO find a better way
  */
-static pthread_mutex_t argvMutex;
+const static int MAX_SIG_CNT = 30;
+static pthread_mutex_t argvMutex = PTHREAD_MUTEX_INITIALIZER;
 static ThreadPool *poolPtr;
-static int *sigToBlock;
+static int sigToBlock[MAX_SIG_CNT + 1]{};
 
 /*
- * This is used by signal handler an threadPool,
- * so it must be global
+ * The var below is for singleton.
+ *
+ * Should NOT use the poolPtr above,
+ * the poolPtr only be inited after call `start` method
+ *
+ * TODO find a better way
  */
-static volatile bool willExit = false;
-
+static ThreadPool *singleton = nullptr;
+static pthread_mutex_t singletonMutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct Task {
-    void *(*func)(void *);
+    void *(*func)(void *){};
 
-    void *argument;
+    void *argument{};
 
-    void (*callback)(void *);
-
-    Task() {
-        this->func = nullptr;
-        this->argument = nullptr;
-        this->callback = nullptr;
-    }
+    void (*callback)(void *){};
 
     explicit Task(void *(*func)(void *),
                   void *argument = nullptr,
@@ -83,43 +84,24 @@ struct Task {
  */
 class ThreadPool {
 public:
-    /**
-     * @param sigToBlock Should end with 0, or there may be buffer overload.
-     * The max len of this array is 30.
-     * <br/>
-     * The thread inside pool will only block signal on sigToBlock.
-     */
-    explicit ThreadPool(size_t threadCnt = DEFAULT_THREAD_CNT,
-                        const int *sigToBlock = {})
-            : threadCnt(computeThreadCnt(threadCnt)) {
-        // make sure that the `this` point is NOT escaped
-        runningThreadCnt = 0;
-        startedThreadCnt = 0;
-        state = NEW;
-        if (!mutexInit(argvMutex)
-            || !mutexInit(taskMutex)
-            || !mutexInit(threadArrayMutex)
-            || !conditionInit(notify)) {
-            warning("init threadPool failed");
-            return;
-        }
-        threadArray.reserve(threadCnt);
-        copySigToBlockArray(sigToBlock);
-    }
 
-    void copySigToBlockArray(const int *sigToBlock) const {
-        // act as memory barrier
-        mutexLock(argvMutex);
-        int ind = 0;
-        while (ind < MAX_SIG_CNT && sigToBlock[ind]) {
-            ::sigToBlock[ind] = sigToBlock[ind];
-            ind++;
+    /**
+     * After use this threadPool should delete this pointer.
+     * However, MUST make sure that only delete it one time!
+     */
+    // TODO find a better way to free this object
+    static ThreadPool *getInstance(size_t threadCnt = DEFAULT_THREAD_CNT,
+                                   const int *sigToBlock = nullptr) {
+        // MUST NOT use DCL: check whether singleton==nullptr before lock mutex.
+        // In Java, this may make thread find an incomplete singleton. (JCIP ch16)
+        // I don't know what will happen on pthread's memory model,
+        // but lock the mutex is a safe way.
+        mutexLock(singletonMutex);
+        if (singleton == nullptr) {
+            singleton = new ThreadPool(threadCnt, sigToBlock);
         }
-        // TODO use exception to replace this
-        if (sigToBlock[ind] != 0) {
-            bug("ThreadPool's sigToBlock param is illegal");
-        }
-        mutexUnlock(argvMutex);
+        mutexUnlock(singletonMutex);
+        return singleton;
     }
 
     /**
@@ -132,17 +114,22 @@ public:
          * should NOT start thread in constructor, or the `this` point will escape.
          * which may make another thread see the incomplete construct object.
          */
+        if (state != NEW) {
+            // TODO replace this using exception
+            bug("call ThreadPool::start after start it", true);
+        }
 
-        // act as memory barrier
+        // the mutex act as memory barrier
         mutexLock(argvMutex);
         ::poolPtr = this;
         mutexUnlock(argvMutex);
 
-        // act as memory barrier
+        this->state = RUNNING;
+        // the mutex act as memory barrier
         mutexLock(threadArrayMutex);
         for (size_t i = 0; i < threadCnt; i++) {
             pthread_t tid;
-            if (createThread(tid, &(ThreadPool::worker), &(argvArray[i]))) {
+            if (createThread(tid, &(ThreadPool::worker), nullptr)) {
                 threadArray.push_back(tid);
                 atomic_fetch_add<int>(&(this->startedThreadCnt), 1);
             }
@@ -156,39 +143,42 @@ public:
      * will fail when the taskQue is full or had called shutdown.
      */
     bool addTask(const Task &task) {
-        if (this->state == NEW) {
-            // TODO use exception to replace this
-            bug("call ThreadPool::addTask before start it");
-        }
-        if (this->state != RUNNING) {
-            return false;
-        }
-
         // Will the task object incomplete construct?
         // the answer is Maybe.
-        // if use construct an Task object in thread A
-        // and call this method with this obj in thread B.
-        // then this obj may be incomplete construct.
+        // if user construct an Task object C in thread A
+        // and call this method with object C in thread B.
+        // then this object C may be incomplete construct.
         // however, this is NOT our responsibility.
 
         if (!task.isValid()) {
             // TODO replace this using exception
             bug("pass invalid task to ThreadPool::addTask", true);
         }
-        if (this->state.load() != RUNNING) {
+
+        // before check the state, must lock the mutex.
+        // or there may be have race condition:
+        // one thread call shutdown while another thread call addTask.
+        //
+        // TODO maybe we can tolerate some inconsistency and improve the performance,
+        //  this need more proof
+        mutexLock(taskQueAndStateMutex);
+        if (this->state == NEW) {
+            // TODO use exception to replace this
+            bug("call ThreadPool::addTask before start it");
+        } else if (this->state != RUNNING) {
             // TODO replace this using exception
-            bug("try to add task after shutdown this thread pool" ,true);
+            bug("try to add task after shutdown this thread pool", true);
         }
-        mutexLock(taskMutex);
         if (taskQue.size() >= MAX_TASK_CNT) {
             warning("ThreadPool::addTask taskQue is full");
-            mutexUnlock(this->taskMutex);
+            mutexUnlock(this->taskQueAndStateMutex);
             return false;
         } else {
-            // the unlock call MUST after signal call
+            // the unlock call MUST after signal call.
+            // queue will call copy constructor of Task.
             taskQue.push(task);
             pthread_cond_signal(&this->notify);
-            mutexUnlock(taskMutex);
+            mutexUnlock(taskQueAndStateMutex);
             return true;
         }
     }
@@ -198,79 +188,125 @@ public:
      * this method is thread safe
      */
     void shutdown(bool completeRest = true) {
+        // MUST lock the mutex before change the state,
+        // or while change state, there may be other thread addTask.
+        mutexLock(taskQueAndStateMutex);
         if (completeRest) {
             this->state = GRACEFUL_SHUTDOWN;
         } else {
             this->state = IMMEDIATE_SHUTDOWN;
         }
-        // for that all thread may wait for new task, so i need to signal them
+        mutexUnlock(taskQueAndStateMutex);
+        // For that there may be threads wait for new task,
+        // so I need to signal them.
         pthread_cond_broadcast(&this->notify);
     }
 
     ~ThreadPool() {
-        if (this->state.load() == RUNNING || this->runningThreadCnt.load() > 0 ||
-            this->startedThreadCnt.load() > 0) {
-            fprintf(stderr, "shutdown\n");
-            this->shutdown();
-        }
+        this->shutdown();
 
-        // should lock this mutex, this mutex is like memory barrier
+        // the mutex act as memory barrier
         mutexLock(threadArrayMutex);
-        for (unsigned long i : threadArray) {
+        for (pthread_t i : threadArray) {
             joinThread(i);
         }
         mutexUnlock(threadArrayMutex);
 
         conditionDestroy(this->notify);
-        mutexDestroy(this->taskMutex);
+        mutexDestroy(this->taskQueAndStateMutex);
         mutexDestroy(this->threadArrayMutex);
+        mutexDestroy(::argvMutex);
+        mutexDestroy(::singletonMutex);
+        ::poolPtr = nullptr;
+        ::singleton = nullptr;
     }
 
 private:
+    /**
+     * @param sigToBlock Should end with 0, or there may be buffer overload.
+     * The max len of this array is 30.
+     * <br/>
+     * The thread inside pool will only block signal on sigToBlock.
+     */
+    explicit ThreadPool(size_t threadCnt = DEFAULT_THREAD_CNT,
+                        const int *sigToBlock = nullptr)
+            : threadCnt(computeThreadCnt(threadCnt)) {
+        // make sure that the `this` point is NOT escaped
+        startedThreadCnt = 0;
+        state = NEW;
+        if (!conditionInit(notify)) {
+            warning("init threadPool failed");
+            return;
+        }
+        threadArray.reserve(threadCnt);
+        copySigToBlockArray(sigToBlock);
+    }
+
+    void copySigToBlockArray(const int *sigToBlock) const {
+        // the mutex act as memory barrier
+        mutexLock(argvMutex);
+        if (sigToBlock == nullptr) {
+            ::sigToBlock[0] = 0;
+            mutexUnlock(argvMutex);
+            return;
+        }
+        int ind = 0;
+        while (ind < MAX_SIG_CNT && sigToBlock[ind]) {
+            ::sigToBlock[ind] = sigToBlock[ind];
+            ind++;
+        }
+        // TODO use exception to replace this
+        if (sigToBlock[ind] != 0) {
+            bug("ThreadPool's sigToBlock param is illegal");
+        }
+        mutexUnlock(argvMutex);
+    }
 
     // TODO add a new thread when a thread exit
     static void *worker(void *argv) {
         /*
-         * if the shutdown is called, then the thread wait at cond will response immediately,
-         * the thread that run task will run until the task end and response immediately
+         * if the shutdown is called,
+         * then the thread wait at cond will response immediately,
+         * the thread that run task will run until the task end
+         * and response immediately
          */
+
+        (void) argv;
 
         // act as memory barrier;
         mutexLock(argvMutex);
-        ThreadArgv &threadArgv = *(ThreadArgv *) argv;
+        ThreadPool &pool = *::poolPtr;
+        changeThreadSigMask(::sigToBlock, SIG_SETMASK);
         mutexUnlock(argvMutex);
 
-        ThreadPool &pool = *(threadArgv.pool);
-        changeThreadSigMask(threadArgv.sigToBlock, SIG_SETMASK);
-
+        if (pool.state == NEW) {
+            bug("ThreadPool::worker should be run when the pool's state is NOT NEW");
+        }
         while (true) {
-            mutexLock(pool.taskMutex);
+            mutexLock(pool.taskQueAndStateMutex);
             // when return from cond wait, should check whether the cond is still true.
             // if stat is gracefulShutdown, should not wait here.
             while (pool.taskQue.empty() && pool.state.load() == RUNNING) {
-                conditionWait(pool.notify, pool.taskMutex);
+                conditionWait(pool.notify, pool.taskQueAndStateMutex);
             }
             // for that only the shutdown func call broadcast,
             // so if taskQue is empty, and the conditionWait return true,
             // one of these check will success
             if ((pool.state.load() == IMMEDIATE_SHUTDOWN) ||
                 (pool.state.load() == GRACEFUL_SHUTDOWN && pool.taskQue.empty())) {
-                mutexUnlock(pool.taskMutex);
+                mutexUnlock(pool.taskQueAndStateMutex);
                 atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
                 return nullptr;
             }
 
             const Task task = pool.taskQue.front();
             pool.taskQue.pop();
-            mutexUnlock(pool.taskMutex);
+            mutexUnlock(pool.taskQueAndStateMutex);
 
-            atomic_fetch_add<int>(&(pool.runningThreadCnt), 1);
             void *r = task.func(task.argument);
             if (task.callback) {
                 task.callback(r);
             }
-            atomic_fetch_sub<int>(&(pool.runningThreadCnt), 1);
-
             if ((pool.state.load() == IMMEDIATE_SHUTDOWN)) {
                 atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
                 return nullptr;
@@ -287,34 +323,16 @@ private:
 
 
 private:
-    // TODO find a way to make this constant not static
-    // it is use by sigToBlock array, so i need to be static
-    const static int MAX_SIG_CNT = 30;
-    enum state_t {
-        NEW, RUNNING, GRACEFUL_SHUTDOWN, IMMEDIATE_SHUTDOWN
-    };
-
-    struct ThreadArgv {
-        ThreadPool *const pool;
-        int sigToBlock[MAX_SIG_CNT + 1];
-
-        ThreadArgv(ThreadPool *p, const int *sigToBlock) : pool(p) {
-            assert(p != nullptr);
-            assert(sigToBlock != nullptr);
-            int ind = 0;
-            while (ind < MAX_SIG_CNT && sigToBlock[ind]) {
-                this->sigToBlock[ind] = sigToBlock[ind];
-                ind++;
-            }
-            assert(sigToBlock[ind] == 0);
-        }
+    enum State {
+        // if change this state enum, then MUST check the program carefully
+                NEW, RUNNING, GRACEFUL_SHUTDOWN, IMMEDIATE_SHUTDOWN
     };
 
 private:
     const size_t threadCnt;
 
     /*
-     * taskQue is protected by taskMutex
+     * taskQue is protected by taskQueAndStateMutex
      */
     queue<Task> taskQue;
 
@@ -328,33 +346,19 @@ private:
      */
     vector<pthread_t> threadArray;
 
-    /*
-     * This vector is to store the arg that pass to worker threads.
-     *
-     * for that I don't ready know pthread's memory model,
-     * so I don't know whether save in this vector will safely public
-     * the completely construct ThreadArgv object to another thread.
-     * (about publication, see the Java concurrency in practice 3.2).
-     *
-     * So I need an lock to act as memory barrier.
-     * However, the pthread can only accept static function,
-     * so this lock must be global(static global) variable
-     */
-    vector<ThreadArgv> argvArray;
-    int sigToBlock[MAX_SIG_CNT + 1];
-
-    pthread_mutex_t taskMutex{};
-    pthread_mutex_t threadArrayMutex{};
+    pthread_mutex_t taskQueAndStateMutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t threadArrayMutex = PTHREAD_MUTEX_INITIALIZER;
 
     /*
      * this condition is signal when one task is add to taskQue.
      * this condition is broadcast when shutdown the threadPool.
      *
-     * this cond's lock is taskMutex.
+     * this cond's lock is taskQueAndStateMutex.
      */
     pthread_cond_t notify{};
 
-    atomic<int> runningThreadCnt{};
     atomic<int> startedThreadCnt{};
-    atomic<state_t> state{};
+    // the state's transformation:
+    // NEW->RUNNING->GRACEFUL_SHUTDOWN or IMMEDIATE_SHUTDOWN
+    atomic<State> state{};
 };
