@@ -12,7 +12,7 @@
 #define __LS_H__
 
 #include "src/main/util/Def.hpp"
-#include "src/main/util/utility.hpp"
+#include "src/main/util/Utility.hpp"
 #include <cctype>
 #include <dirent.h>
 #include <dirent.h>

@@ -60,30 +60,6 @@ using std::exception;
 #define PSI std::pair<std::string, int>
 #define CMD_MAX_LEN (PATH_MAX + 10)
 
-struct task_t {
-    void *(*func)(void *);
-
-    void *argument;
-
-    void (*callback)(void *);
-
-    task_t() {
-        this->func = nullptr;
-        this->argument = nullptr;
-        this->callback = nullptr;
-    }
-
-    explicit task_t(void *(*func)(void *), void *argument = nullptr, void (*callback)(void *) = nullptr) {
-        this->func = func;
-        this->argument = argument;
-        this->callback = callback;
-    }
-
-    bool isValid() const {
-        return this->func;
-    }
-};
-
 struct UserInfo {
     bool isValid;
     uid_t uid;

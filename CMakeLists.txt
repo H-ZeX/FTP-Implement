@@ -25,12 +25,12 @@ set(SRC
         src/main/core/Session.h
         src/main/tools/ThreadPool.hpp
         src/main/util/ThreadUtility.hpp
-        src/main/util/utility.hpp)
+        src/main/util/Utility.hpp)
 
 set(UtilTestSrc
         src/test/util/main.cpp
         src/test/util/UtilityTest.hpp
-        src/main/util/utility.hpp
+        src/main/util/Utility.hpp
         )
 
 add_executable(${PROJECT_NAME} ${SRC})

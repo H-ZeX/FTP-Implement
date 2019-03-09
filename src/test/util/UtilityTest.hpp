@@ -6,7 +6,7 @@
 #define FTP_SERVER_UTILITY_TEST_H
 
 #include <cassert>
-#include "src/main/util/utility.hpp"
+#include "src/main/util/Utility.hpp"
 #include "src/main/util/ThreadUtility.hpp"
 #include "src/main/util/NetUtility.hpp"
 
@@ -150,6 +150,25 @@ public:
             delete[] (cond);
         }
     }
+
+    static void testConditionSignal() {
+        pthread_cond_t cond1{};
+        conditionInit(cond1);
+        conditionSignal(cond1);
+
+        pthread_cond_t cond2;
+        conditionSignal(cond2);
+    }
+
+    static void testConditionBroadcast() {
+        pthread_cond_t cond;
+        conditionInit(cond);
+        conditionBroadcast(cond);
+
+        pthread_cond_t cond2;
+        conditionBroadcast(cond2);
+    }
+
 
     // TODO valgrind report a leak here
     static void testThread() {

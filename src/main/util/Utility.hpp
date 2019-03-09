@@ -11,7 +11,7 @@
 #define __UTILITY_H__
 
 #include "Def.hpp"
-#include "utility.hpp"
+#include "Utility.hpp"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <dirent.h>

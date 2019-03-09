@@ -13,7 +13,7 @@
 
 #include "Def.hpp"
 #include <cerrno>
-#include "src/main/util/utility.hpp"
+#include "src/main/util/Utility.hpp"
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <cstdio>

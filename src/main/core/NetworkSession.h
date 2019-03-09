@@ -10,7 +10,7 @@
 
 #include "src/main/util/Def.hpp"
 #include "src/main/util/NetUtility.hpp"
-#include "src/main/util/utility.hpp"
+#include "src/main/util/Utility.hpp"
 #include <cstdlib>
 #include <ctime>
 #include <src/main/util/Def.hpp>

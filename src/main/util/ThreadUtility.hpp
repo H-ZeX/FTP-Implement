@@ -12,7 +12,7 @@
 #define __THREAD_UTILITY_H__
 
 #include "Def.hpp"
-#include "utility.hpp"
+#include "Utility.hpp"
 #include <pthread.h>
 #include <time.h>
 
@@ -111,6 +111,35 @@ void conditionDestroy(pthread_cond_t &cond) {
     int t = pthread_cond_destroy(&cond);
     if (t != 0) {
         bugWithErrno("conditionDestroy pthread_cond_destroy failed", t, true);
+    }
+}
+
+void conditionSignal(pthread_cond_t &cond) {
+    // TODO the behavior of signal is different from manual
+    // according to manual https://linux.die.net/man/3/pthread_cond_signal
+    // if call pthread_cond_signal with an uninitialized condition.
+    // it will return an EINVAL. however, in my test, it block.
+    // the original text
+    // The pthread_cond_broadcast() and pthread_cond_signal() function may fail if:
+    // EINVAL
+    // The value cond does not refer to an initialized condition variable.
+
+    int t = pthread_cond_signal(&cond);
+    if (t != 0) {
+        bugWithErrno("conditionSignal "
+                     "pthread_cond_signal failed",
+                     t, true);
+    }
+}
+
+void conditionBroadcast(pthread_cond_t &cond) {
+    // TODO the behavior of broadcast is different manual
+    // see the conditionSignal comment
+    int t = pthread_cond_broadcast(&cond);
+    if (t != 0) {
+        bugWithErrno("conditionBroadcast "
+                     "pthread_cond_broadcast failed",
+                     t, true);
     }
 }
 
