@@ -13,10 +13,10 @@
 
 #include "src/main/util/Def.hpp"
 #include "src/main/util/utility.hpp"
-#include <ctype.h>
+#include <cctype>
 #include <dirent.h>
 #include <dirent.h>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
 #include <grp.h>
 #include <iostream>
@@ -25,9 +25,9 @@
 #include <pthread.h>
 #include <pwd.h>
 #include <semaphore.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -46,15 +46,15 @@ class ListFiles {
      * return 0 if succeed
      */
   public:
-    static int ls(const char *const path, std::string &result);
+    static int ls(const char *path, std::string &result);
 
   private:
-    static int lsNotDir(const char *const path, std::string &result);
-    static int lsDir(const char *const path, std::string &result);
+    static int lsNotDir(const char *path, std::string &result);
+    static int lsDir(const char *path, std::string &result);
     static std::string uid2username(uid_t id);
-    static std::string gid2groupname(gid_t id);
+    static std::string gid2GroupName(gid_t id);
     static void formatMode(int mode, std::string &result);
-    static void formatTime(const time_t *timep, string &result);
+    static void formatTime(const time_t *time, string &result);
 
   private:
     /**

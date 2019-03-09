@@ -20,11 +20,14 @@ bool mutexInit(pthread_mutex_t &mutex, const pthread_mutexattr_t *attr = nullptr
     int t = pthread_mutex_init(&mutex, attr);
     if (t != 0 && (t == EPERM || t == EINVAL)) {
         bugWithErrno("mutexInit pthread_mutex_init failed", t, true);
+    } else if (t != 0) {
+        warningWithErrno("mutexInit pthread_mutex_init", t);
     }
     return t == 0;
 }
 
 /**
+ * @param timeout unit is second.
  * @return If timeout is >=0, then the return whether lock success.
  */
 bool mutexLock(pthread_mutex_t &mutex, int timeout = -1) {
@@ -71,6 +74,8 @@ bool conditionInit(pthread_cond_t &condition, const pthread_condattr_t *attr = n
     int t = pthread_cond_init(&condition, attr);
     if (t != 0 && t != ENOMEM) {
         bugWithErrno("conditionInit pthread_cond_init failed", t, true);
+    } else if (t != 0) {
+        warningWithErrno("conditionInit pthread_cond_init failed", t);
     }
     return t == 0;
 }
@@ -135,14 +140,22 @@ void joinThread(pthread_t pid, void **retVal = nullptr) {
  * @param sigSet end with 0 to indicate the end of sigSet, for that all signal is >0.
  * The max len of sigSet is 30.
  * @param how
+ * <br/>
  * The behavior of the call is dependent on the value of how, as follows.
+ * <br/>
  * SIG_BLOCK
+ * <br/>
  * The set of blocked signals is the union of the current set and the set argument.
+ * <br/>
  * SIG_UNBLOCK
+ * <br/>
  * The signals in set are removed from the current set of blocked signals.
  * It is permissible to attempt to unblock a signal which is not blocked.
+ * <br/>
  * SIG_SETMASK
+ * <br/>
  * The set of blocked signals is set to the argument set.
+ * <br/>
  *
  * MT-safe
  */

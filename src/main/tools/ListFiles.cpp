@@ -15,7 +15,7 @@ map<int, const char *const> ListFiles::monName{{0, "Jan"},  {1, "Feb"},  {2, "Ma
 
 int ListFiles::ls(const char *const path, std::string &result) {
     char errnoBuf[ERRNO_BUF_SIZE];
-    struct stat statbuf;
+    struct stat statbuf{};
     if (lstat(path, &statbuf) < 0) {
         result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
         return STAT_FAIL;
@@ -29,7 +29,7 @@ int ListFiles::ls(const char *const path, std::string &result) {
 
 int ListFiles::lsNotDir(const char *const path, std::string &result) {
     result.clear();
-    struct stat statbuf;
+    struct stat statbuf{};
     char errnoBuf[ERRNO_BUF_SIZE];
     if (lstat(path, &statbuf) < 0) {
         result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
@@ -46,7 +46,7 @@ int ListFiles::lsNotDir(const char *const path, std::string &result) {
     }
     result += printBuf;
     result += " ";
-    if (snprintf(printBuf, bufSize + 1, "%s", gid2groupname(statbuf.st_gid).c_str()) > bufSize) {
+    if (snprintf(printBuf, bufSize + 1, "%s", gid2GroupName(statbuf.st_gid).c_str()) > bufSize) {
         bug("ListFiles::lsNotDir groupname too long", false);
     }
     result += printBuf;
@@ -71,7 +71,7 @@ int ListFiles::lsDir(const char *const path, std::string &result) {
     // I'll still check the length of pathname for that I don't know when
     // will stat find this error
     char pathname[PATH_MAX + 10], errnoBuf[ERRNO_BUF_SIZE];
-    struct stat statbuf;
+    struct stat statbuf{};
     DIR *streamp;
     off_t maxSize = 0, maxNameLen = 0;
     streamp = opendir(path);
@@ -89,7 +89,7 @@ int ListFiles::lsDir(const char *const path, std::string &result) {
         } else if (!dep) {
             break;
         }
-        mereString(pathname, (const char *const[]){path, "/", dep->d_name, 0}, PATH_MAX);
+        mereString(pathname, (const char *const[]){path, "/", dep->d_name, nullptr}, PATH_MAX);
         // don't know whether stat is MT-safe, however, stat only need to read the shared data
         // structure, if the data structure isn't change when stat is call, **I believe** stat
         // is MT-safe. Also, vsftpd user stat without lock
@@ -99,7 +99,7 @@ int ListFiles::lsDir(const char *const path, std::string &result) {
         }
         int t = uid2username(statbuf.st_uid).length();
         maxNameLen = std::max<off_t>(t, maxNameLen);
-        t = gid2groupname(statbuf.st_gid).length();
+        t = gid2GroupName(statbuf.st_gid).length();
         maxNameLen = std::max<off_t>(t, maxNameLen);
         maxSize = std::max<off_t>(maxSize, statbuf.st_size);
     }
@@ -126,7 +126,7 @@ int ListFiles::lsDir(const char *const path, std::string &result) {
         } else if (!dep) {
             break;
         }
-        mereString(pathname, (const char *const[]){path, "/", dep->d_name, 0}, PATH_MAX);
+        mereString(pathname, (const char *const[]){path, "/", dep->d_name, nullptr}, PATH_MAX);
         if (lstat(pathname, &statbuf) < 0) {
             result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
             return STAT_FAIL;
@@ -139,7 +139,7 @@ int ListFiles::lsDir(const char *const path, std::string &result) {
         }
         result += printBuf;
         result += " ";
-        if (snprintf(printBuf, maxNameLen + 1, fmtName, gid2groupname(statbuf.st_gid).c_str()) >
+        if (snprintf(printBuf, maxNameLen + 1, fmtName, gid2GroupName(statbuf.st_gid).c_str()) >
             maxNameLen) {
             bug("ListFiles::lsDir groupname too long", false);
         }
@@ -164,7 +164,7 @@ std::string ListFiles::uid2username(uid_t id) {
     return id2name<uid_t, passwd, getUid_t, char * passwd::*>(id, getpwuid_r, &passwd::pw_name);
 }
 
-std::string ListFiles::gid2groupname(gid_t id) {
+std::string ListFiles::gid2GroupName(gid_t id) {
     return id2name<gid_t, group, getGid_t, char * group::*>(id, getgrgid_r, &group::gr_name);
 }
 
@@ -205,9 +205,9 @@ void ListFiles::formatMode(int mode, std::string &result) {
         mark >>= 1;
     }
 }
-void ListFiles::formatTime(const time_t *timep, string &result) {
+void ListFiles::formatTime(const time_t *time, string &result) {
     struct tm time, *res;
-    res = localtime_r(timep, &time);
+    res = localtime_r(time, &time);
     if (res == nullptr) {
         warningWithErrno("ListFiles::formatTime");
         result += std::to_string(0);

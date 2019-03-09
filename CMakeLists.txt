@@ -11,20 +11,19 @@ set(SRC
         src/main/util/Def.hpp
         src/main/tools/FileSystem.cpp
         src/main/tools/FileSystem.h
-        src/main/ftp/FTP.cpp
-        src/main/ftp/FTP.h
+        src/main/core/FTP.cpp
+        src/main/core/FTP.h
         src/main/tools/ListFiles.cpp
         src/main/tools/ListFiles.h
         src/main/main.cpp
         src/main/util/NetUtility.hpp
-        src/main/ftp/NetworkSession.cpp
-        src/main/ftp/NetworkSession.h
-        src/main/ftp/PreLogin.cpp
-        src/main/ftp/PreLogin.h
-        src/main/ftp/Session.cpp
-        src/main/ftp/Session.h
-        src/main/tools/ThreadPool.cpp
-        src/main/tools/ThreadPool.h
+        src/main/core/NetworkSession.cpp
+        src/main/core/NetworkSession.h
+        src/main/core/PreLogin.cpp
+        src/main/core/PreLogin.h
+        src/main/core/Session.cpp
+        src/main/core/Session.h
+        src/main/tools/ThreadPool.hpp
         src/main/util/ThreadUtility.hpp
         src/main/util/utility.hpp)
 

@@ -13,6 +13,15 @@
 
 class UtilityTest {
 public:
+
+    static void testBug() {
+        bug("TestBug");
+    }
+
+    static void testBugWithErrno() {
+        bugWithErrno("testBugWithErrno", errno, true);
+    }
+
     static void testMereString() {
         char dest[1024];
         char *s = mereString(dest, (const char *const[]) {"abc", "", "", nullptr}, 1024);
@@ -93,8 +102,8 @@ public:
         cout << "IO Test success" << endl;
     }
 
-    static void testMutex() {
-        const int testCnt = 1024;
+    // TODO mutexInit's error situation had NOT tested
+    static void testMutex(const int testCnt = 1024) {
         const int maxMutexCnt = 1024;
         for (int i = 0; i < testCnt; i++) {
             const int len = static_cast<const int>(random() % maxMutexCnt);
@@ -109,11 +118,19 @@ public:
             for (int k = 0; k < len; k++) {
                 mutexDestroy(mutex[k]);
             }
+            delete[](mutex);
         }
     }
 
-    static void testCondition() {
-        const int testCnt = 1024;
+    static void testTimedMutex() {
+        pthread_mutex_t mutex;
+        assert(mutexInit(mutex));
+        assert(mutexLock(mutex));
+        assert(!mutexLock(mutex, 10));
+    }
+
+    // TODO condInit's error situation had NOT tested
+    static void testCondition(const int testCnt = 1024) {
         const int maxCondCnt = 1024;
         for (int i = 0; i < testCnt; i++) {
             const int len = static_cast<const int>(random() % maxCondCnt);
@@ -130,9 +147,11 @@ public:
             for (int k = 0; k < len; k++) {
                 conditionDestroy(cond[k]);
             }
+            delete[] (cond);
         }
     }
 
+    // TODO valgrind report a leak here
     static void testThread() {
         pthread_t pid;
         cout << createThread(pid, (UtilityTest::runner)) << endl;
@@ -143,8 +162,7 @@ public:
         kill(getpid(), SIGINT);
     }
 
-    static void testNetworkAndReadLine(const char *const listenPort) {
-        const int testCnt = 1024;
+    static void testNetworkAndReadLine(const char *const listenPort, const int testCnt = 1024) {
         const int maxBufSize = 1024;
         const int maxMsgLen = 1024 * 10;
         const int maxLineLen = 100;

@@ -56,44 +56,61 @@ using namespace std;
  * So the bug report is NOT complete.
  */
 
+/**
+ * MT-Safety
+ */
 void myLog(const char *const msg) {
     printf("%s\n", msg);
     fflush(stdout);
 }
 
+/**
+ * MT-Safe locale
+ */
 void bug(const char *const msg, bool willExit = true, int lineNum = -1) {
     void *buffer[BT_BUF_SIZE];
     int t = backtrace(buffer, BT_BUF_SIZE);
     char **str = backtrace_symbols(buffer, t);
     if (str == nullptr) {
         fprintf(stderr, "backtrace_symbols error");
-        exit(BUG_EXIT);
     }
     flockfile(stderr);
     fprintf(stderr, "%s\nLineNumber: %d\n", msg, lineNum);
-    for (int i = 0; i < t; i++) {
-        fprintf(stderr, "%s\n", str[i]);
+    if (str != nullptr) {
+        for (int i = 0; i < t; i++) {
+            fprintf(stderr, "%s\n", str[i]);
+        }
     }
     funlockfile(stderr);
+    // free(nullptr) is legal
     free(str);
     if (willExit) {
         exit(BUG_EXIT);
     }
 }
 
+/**
+ * MT-Safe locale
+ */
 void bugWithErrno(const char *const msg, errno_t code, bool willExit) {
     char errnoBuf[ERRNO_BUF_SIZE], warningBuf[WARNING_BUF_SIZE];
-    if (snprintf(warningBuf, WARNING_BUF_SIZE, "%s: %s", msg,
+    if (snprintf(warningBuf, WARNING_BUF_SIZE, "%s, errMsg: %s", msg,
                  strerror_r(code, errnoBuf, ERRNO_BUF_SIZE)) >= WARNING_BUF_SIZE) {
-        bug("bugWithErrno snprintf buffer size too small", false);
+        bug("bugWithErrno snprintf buffer size too small", true);
     }
     bug(warningBuf, willExit);
 }
 
+/**
+ * MT-Safe locale
+ */
 void warning(const char *const msg) {
     fprintf(stderr, "%s\n", msg);
 }
 
+/**
+ * MT-Safe locale
+ */
 void warningWithErrno(const char *const msg, errno_t code) {
     char errnoBuf[ERRNO_BUF_SIZE], warningBuf[WARNING_BUF_SIZE];
     if (snprintf(warningBuf, WARNING_BUF_SIZE, "%s: %s", msg,
@@ -106,9 +123,10 @@ void warningWithErrno(const char *const msg, errno_t code) {
 /**
  * @return -1 If  name corresponds to a maximum or minimum limit,
  * and that limit is indeterminate.
- * Or If name corresponds to an option,
- * and -1 is returned if the option is not supported.
+ * Or If name corresponds to an option and the option is not supported.
  * Otherwise, return the result
+ *
+ * MT-Safe env locale
  */
 long Sysconf(int name) {
     errno_t es = errno;
@@ -124,6 +142,8 @@ long Sysconf(int name) {
 /**
  * @return the limit on the number of thread
  * for the real user ID of the calling process.
+ *
+ * MT-Safe locale
  */
 size_t maxThreadCnt() {
     rlimit rl{};
@@ -138,6 +158,8 @@ size_t maxThreadCnt() {
 /**
  * if the fd is not given type, this function will report an bug
  * @return if there is error occur, return false;
+ *
+ * Thread-Safety: Unknown
  */
 bool makeSureFdType(int fd, int type) {
     int t = isfdtype(fd, type);
@@ -153,9 +175,9 @@ bool makeSureFdType(int fd, int type) {
 
 
 /**
- * mere all string in strArray and save in dest,
- * the end of strArray must be (char*)NULL
- * the str saved in dest will be at most maxlen(without \0)
+ * @param maxLen the dest MUST has >= (maxLen+1) size
+ *
+ * MT-Safe
  */
 char *mereString(char *dest, const char *const strArray[], size_t maxLen) {
     string result;
@@ -173,6 +195,8 @@ char *mereString(char *dest, const char *const strArray[], size_t maxLen) {
 
 /**
  * calculate the length of num
+ *
+ * MT-Safe
  */
 template<typename T>
 int numLen(T num, int base) {
@@ -184,13 +208,19 @@ int numLen(T num, int base) {
     return ans;
 }
 
+/**
+ * MT-Safe
+ */
 char charUpper(char c) {
     return (char) ((c >= 'a' && c <= +'z') * (-0x20) + c);
 }
 
 /**
- *
  * @return the dest point (same as the dest param)
+ *
+ * will NOT pad \0 at the end of dest.
+ * <br/>
+ * MT-Safe
  */
 byte *byteCpy(byte *dest, const byte *const src, int n) {
     for (int i = 0; i < n; i++) {
@@ -203,6 +233,8 @@ byte *byteCpy(byte *dest, const byte *const src, int n) {
  * @return The size had read, 0 if EOF(or want==0),
  * -1 if error occur, the errno will be set appropriately.
  * errno can be EAGAIN EWOULDBLOCK EBADF EINVAL EIO
+ *
+ * Thread-Safety: Unknown(because the `read` function's Thread-Safety is Unknown)
  */
 int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
     if (buf.remainderSize > 0) {
@@ -251,6 +283,9 @@ int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
     assert(false);
 }
 
+/**
+ * Thread-Safety: Unknown(because the write function's Thread-Safety is Unknown
+ */
 bool writeAllData(int fd, const byte *buf, size_t size) {
     if (size == 0) {
         return true;
@@ -285,6 +320,8 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
 
 /**
  * @return whether close success
+ *
+ * Thread-Safety: Unknown(Because the `close` function's Thread-Safety is Unknown)
  */
 bool closeFileDescriptor(int fd) {
     if (fd < 3 && fd >= 0) {
@@ -306,11 +343,17 @@ bool closeFileDescriptor(int fd) {
 }
 
 
+/**
+ * Thread-Safety: Unknown(because of `fcntl` function's Thread-Safety is Unknown)
+ */
 bool setNonBlocking(int fd) {
-    // TODO, the errno
+    // TODO, the errno handler should be refined
     return (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK) == -1);
 }
 
+/**
+ * Thread-Safety: MT-Safe locale
+ */
 UserInfo getUidGidHomeDir(const char *const username) {
     struct passwd pwd{}, *res;
     long t = Sysconf(_SC_GETPW_R_SIZE_MAX);
@@ -351,14 +394,15 @@ struct ReadLineReturnValue {
 
 
 /**
- * MT-safe
- *
  * if EndOfLine is true, then EOF will always be false
  *
  * @param size the buf len should >= size+1, after read, the buf[size] is 0.
  * if the size is too small, then may not contain one full line.
  * @param buf store the result, the index after the line's last char is 0.
  * the buf does NOT contain the CRLF
+ *
+ * MT-safety: Unknown(because of `read` function's Thread-Safety is Unknown)
+ *
  */
 ReadLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cache) {
     assert(fd >= 3 && buf != nullptr && size > 0);
@@ -375,7 +419,7 @@ ReadLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cac
         cnt++;
         if (cnt >= SIZEOF_END_OF_LINE && isEndOfLine(buf - SIZEOF_END_OF_LINE)) {
             *(buf - SIZEOF_END_OF_LINE) = 0;
-            return {true, true, false, static_cast<unsigned long>(cnt-2)};
+            return {true, true, false, static_cast<unsigned long>(cnt - 2)};
         }
     }
     // error occur or EOF occur.
@@ -392,9 +436,9 @@ ReadLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cac
 }
 
 /**
- *
- * MT-safe.
  * @return true if EOF occur
+ *
+ * MT-Safety: Unknown(because the `read` function's Thread-Safety is Unknown)
  */
 bool consumeByteUntilEndOfLine(int fd, ReadBuf &cache) {
     // TODO, this function only work when the str doesn't contain alone CR or LR

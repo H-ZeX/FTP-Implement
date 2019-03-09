@@ -25,11 +25,10 @@
 #include <fcntl.h>
 
 /**
- * MT-safe env local
  * @return if success, return file descriptor.
  * @return -1 accept connect fail
  *
- * MT-safe env local
+ * MT-Safety: Unknown(the `makeSureFdType` and `accept` function's Thread-Safety is Unknown)
  */
 int acceptConnect(int listenFd) {
     assert(listenFd >= 3);
@@ -50,7 +49,7 @@ int acceptConnect(int listenFd) {
  * @return if success, return file descriptor
  * @return -1 if failed
  *
- * MT-safe env local
+ * MT-Safety: Unknown(Because the `socket`, `connect`, `close` function's Thread-Safety is Unknown)
  */
 int openClientFd(const char *hostname, const char *port) {
     assert(hostname != nullptr && port != nullptr);
@@ -91,7 +90,8 @@ int openClientFd(const char *hostname, const char *port) {
  * @return if success, return file descriptor
  * @return -1 if failed
  *
- * MT-safe  env local
+ * MT-Safety: Unknown(Because the `socket`, `connect`, `close`,
+ * `listen`, `bind` function's Thread-Safety is Unknown)
  */
 int openListenFd(const char *port, int backLog = BACK_LOG) {
     assert(port != nullptr && backLog > 0);
@@ -140,11 +140,11 @@ int openListenFd(const char *port, int backLog = BACK_LOG) {
  * MT-safe env local
  */
 const string getThisMachineIp() {
-    char line[100], *p, *c, *save_1;
-    FILE *f = fopen("/proc/net/route", "r");
-    while (fgets(line, 100, f)) {
-        p = strtok_r(line, " \t", &save_1);
-        c = strtok_r(nullptr, " \t", &save_1);
+    char line[100], *p, *c, *save;
+    FILE *routeFile = fopen("/proc/net/route", "r");
+    while (fgets(line, 100, routeFile)) {
+        p = strtok_r(line, " \t", &save);
+        c = strtok_r(nullptr, " \t", &save);
         if (p != nullptr && c != nullptr) {
             if (strncmp(c, "00000000", 8) == 0) {
                 break;
@@ -181,6 +181,7 @@ const string getThisMachineIp() {
         }
     }
     freeifaddrs(addr);
+    fclose(routeFile);
     return host;
 }
 
