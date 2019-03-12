@@ -155,6 +155,9 @@ bool createThread(pthread_t &pid,
     if (t == EINVAL || t == EPERM) {
         bugWithErrno("createThread pthread_create failed", t, true);
     }
+    if (t != 0) {
+        warningWithErrno("createThread pthread_create failed", t);
+    }
     return t == 0;
 }
 

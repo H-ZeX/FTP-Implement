@@ -13,6 +13,7 @@ static atomic_int addResultV1{};
 
 // testThreadPoolV1 param
 static atomic_int addResultV2{};
+static atomic_int finishCntV2{};
 
 class ToolsTest {
 public:
@@ -44,15 +45,27 @@ public:
         srand(static_cast<unsigned int>(clock()));
         for (int i = 0; i < testCnt; i++) {
             addResultV2 = 0;
+            finishCntV2 = 0;
             const int threadCnt = static_cast<const int>(random() % maxThreadCnt);
             const int taskCnt = static_cast<const int>(random() % maxTaskCnt);
             pthread_t threads[threadCnt];
             for (int j = 0; j < threadCnt; j++) {
-                assert(createThread(threads[j], ToolsTest::addTaskRunner, (void *) &taskCnt));
+                bool success = createThread(threads[j], ToolsTest::addTaskRunner, (void *) &taskCnt);
+                if (!success) {
+                    fprintf(stderr, "This test create too many threads!");
+                    exit(0);
+                }
             }
+            // If I use join but not the way below(has benn commented),
+            // then such maxThreadCnt config will not lead to create thread failed.
+            // However, the way below will lead to create failed.
+            // Is the pthread_join clear the resource? (I did not find this in manual).
             for (int k = 0; k < threadCnt; k++) {
                 joinThread(threads[k]);
             }
+            // while (finishCntV2 != threadCnt) {
+            //     pthread_yield();
+            // }
             // delete after all task has ended
             delete ThreadPool::getInstance();
 
@@ -87,6 +100,7 @@ private:
         while (endCnt != taskCnt) {
             pthread_yield();
         }
+        finishCntV2 += 1;
         return nullptr;
     }
 
