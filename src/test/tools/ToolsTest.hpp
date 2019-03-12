@@ -8,74 +8,86 @@
 
 #include <src/main/tools/ThreadPool.hpp>
 
-static atomic_int cnt{};
+// testThreadPoolV1 param
+static atomic_int addResultV1{};
+
+// testThreadPoolV1 param
+static atomic_int addResultV2{};
 static atomic_int finishCnt{};
 
 class ToolsTest {
 public:
     static void testThreadPoolV1() {
         srand(static_cast<unsigned int>(clock()));
+
         ThreadPool *pool = ThreadPool::getInstance();
         pool->start();
-        const int taskCnt = 10240;
+        addResultV1 = 0;
+
+        const int taskCnt = 100;
         int data[taskCnt];
-        for (int j = 0; j < taskCnt; j++) {
-            data[j] = 1;
-            pool->addTask(Task((ToolsTest::runner), &data[j], nullptr));
+        for (int &j : data) {
+            j = 1;
+            pool->addTask(Task((ToolsTest::runnerV1), &j));
         }
         pool->shutdown(false);
         delete pool;
-        if (cnt != taskCnt) {
-            cout << cnt << " " << taskCnt << endl;
+        if (addResultV1 != taskCnt) {
+            cout << addResultV1 << " " << taskCnt << endl;
         }
-        assert(cnt == taskCnt);
+        assert(addResultV1 == taskCnt);
     }
 
     static void testThreadPoolV2() {
-        const int testCnt = 100;
+        const int testCnt = 1024;
+        const int maxTaskCnt = 100;
+        const int maxThreadCnt = 100;
         srand(static_cast<unsigned int>(clock()));
         for (int i = 0; i < testCnt; i++) {
-            cnt = 0;
+            addResultV2 = 0;
             finishCnt = 0;
-            const int threadCnt = static_cast<const int>(random() % 10);
-            int data[threadCnt];
+            const int threadCnt = static_cast<const int>(random() % maxThreadCnt);
+            const int taskCnt = static_cast<const int>(random() % maxTaskCnt);
             for (int j = 0; j < threadCnt; j++) {
                 pthread_t pid;
-                data[j] = j;
-                createThread(pid, ToolsTest::addTaskRunner, &data[j]);
+                createThread(pid, ToolsTest::addTaskRunner, (void *) &taskCnt);
             }
             while (finishCnt != threadCnt) {
-                assert(pthread_yield() == 0);
+                pthread_yield();
             }
-            int want = threadCnt * (99 + 0) * 100 / 2;
-            assert(threadCnt == 0 || want > 0);
-            if (want != cnt) {
-                cout << want << " " << cnt << endl;
-            }
+            // delete after all task has ended
             delete ThreadPool::getInstance();
-            assert(cnt == want);
+            const int want = threadCnt * (taskCnt - 1) * taskCnt / 2;
+            if (want != addResultV2) {
+                cout << want << " " << addResultV2 << endl;
+            }
+            assert(addResultV2 == want);
             cout << "success " << i << endl;
         }
     }
 
+private:
+    /**
+     * add 0...taskCnt-1 to the addResultV2 using ThreadPool
+     */
     static void *addTaskRunner(void *argv) {
-        (void) argv;
-        ThreadPool &pool = *ThreadPool::getInstance(10);
+        const int taskCnt = *(int *) argv;
+        ThreadPool &pool = *ThreadPool::getInstance(100);
         // wait other thread
         usleep(static_cast<__useconds_t>(random() % 1000));
-
         pool.start();
+
         atomic_int endCnt{};
-        Argv a[100];
-        for (int i = 0; i < 100; i++) {
-            a[i].toAdd = i;
-            a[i].endCnt = &endCnt;
-            pool.addTask(Task(ToolsTest::runner, &a[i]));
+        // TODO is this array and its content visible to another thread?
+        Argv argvArray[taskCnt];
+        for (int i = 0; i < taskCnt; i++) {
+            argvArray[i].toAdd = i;
+            argvArray[i].endCnt = &endCnt;
+            pool.addTask(Task(ToolsTest::runnerV2, &argvArray[i]));
         }
-        while (endCnt != 100) {
+        while (endCnt != taskCnt) {
             pthread_yield();
         }
-        // cout << "one addTaskRunner end\n";
         atomic_fetch_add(&finishCnt, 1);
         return nullptr;
     }
@@ -86,28 +98,19 @@ private:
         atomic_int *endCnt = nullptr;
     };
 
-    static void *runner(void *argv) {
-        Argv &a = *(Argv *) argv;
-        int t = a.toAdd;
+    static void *runnerV1(void *param) {
+        int toAdd = *(int *) param;
+        usleep(static_cast<__useconds_t>(random() % 1000));
+        addResultV1 += toAdd;
+        return nullptr;
+    }
+
+    static void *runnerV2(void *param) {
+        Argv &argv = *(Argv *) param;
         // sleep to wait other thread
         usleep(static_cast<__useconds_t>(random() % 1000));
-
-        assert(t < 100);
-        int *p = new int[1024];
-        for (int j = 0; j < 1024; j++) {
-            p[j] = t;
-        }
-        int k = 0;
-        for (int i = 0; i < 1024; i++) {
-            k += p[i];
-        }
-        if (k / 1024 != t) {
-            printf("k/1024=%d\tt=%d\n", k / 1024, t);
-        }
-        assert(k / 1024 == t);
-        atomic_fetch_add(&cnt, k / 1024);
-        delete[] p;
-        atomic_fetch_add((a.endCnt), 1);
+        atomic_fetch_add(&addResultV2, argv.toAdd);
+        atomic_fetch_add((argv.endCnt), 1);
         return nullptr;
     }
 };
