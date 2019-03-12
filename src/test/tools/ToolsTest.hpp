@@ -13,7 +13,6 @@ static atomic_int addResultV1{};
 
 // testThreadPoolV1 param
 static atomic_int addResultV2{};
-static atomic_int finishCnt{};
 
 class ToolsTest {
 public:
@@ -45,18 +44,18 @@ public:
         srand(static_cast<unsigned int>(clock()));
         for (int i = 0; i < testCnt; i++) {
             addResultV2 = 0;
-            finishCnt = 0;
             const int threadCnt = static_cast<const int>(random() % maxThreadCnt);
             const int taskCnt = static_cast<const int>(random() % maxTaskCnt);
+            pthread_t threads[threadCnt];
             for (int j = 0; j < threadCnt; j++) {
-                pthread_t pid;
-                createThread(pid, ToolsTest::addTaskRunner, (void *) &taskCnt);
+                assert(createThread(threads[j], ToolsTest::addTaskRunner, (void *) &taskCnt));
             }
-            while (finishCnt != threadCnt) {
-                pthread_yield();
+            for (int k = 0; k < threadCnt; k++) {
+                joinThread(threads[k]);
             }
             // delete after all task has ended
             delete ThreadPool::getInstance();
+
             const int want = threadCnt * (taskCnt - 1) * taskCnt / 2;
             if (want != addResultV2) {
                 cout << want << " " << addResultV2 << endl;
@@ -88,7 +87,6 @@ private:
         while (endCnt != taskCnt) {
             pthread_yield();
         }
-        atomic_fetch_add(&finishCnt, 1);
         return nullptr;
     }
 
