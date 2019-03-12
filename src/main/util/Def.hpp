@@ -29,7 +29,6 @@ using std::exception;
 #define READ_BUF_SIZE 1024
 #define DEFAULT_THREAD_CNT 100
 #define MAX_TASK_CNT 10240
-#define MUTEX_TIMEOUT_SEC 600
 #define MAX_EPOLL_SIZE MAX_TASK_CNT
 #define LOGIN_INCORRECT_DELAY_SEC 3
 /**

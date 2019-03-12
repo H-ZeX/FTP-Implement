@@ -1,13 +1,3 @@
-/**********************************************************************************
-*   Copyright © 2018 H-ZeX. All Rights Reserved.
-*
-*   File Name:    threadPool.h
-*   Author:       H-ZeX
-*   Create Time:  2018-08-23-15:12:49
-*   Describe:
-*
-**********************************************************************************/
-
 #include "src/main/util/Def.hpp"
 #include "src/main/util/ThreadUtility.hpp"
 #include "src/main/util/Utility.hpp"
@@ -23,25 +13,25 @@ using namespace std;
 
 class ThreadPool;
 
+const static int MAX_SIG_CNT = 30;
 /*
- * pthread's runner func should be static,
- * however, this two param must be pass to the runner.
- * so I use such global var.
+ * I don't know if use point to pass these var to the runner,
+ * will the var that init in control thread visible to the new thread?
+ * So I need a mutex to act as memory barrier.
+ * And, as I use the global var, so this class should only be singleton.
+ * So it is ok to let the var that pass to runner be global.
+ * TODO find a better way
  *
- * This two var is effective constant,
- * however, I don't know how pthread's memory model handle such var,
- * will it be visible to other thread after init by control thread ?
- * So I use an mutex, act as the memory barrier.
+ * This two var is effective constant.
+ * The sigToBlock and poolPtr is protected by poolPtrAndSigToBlockMutex.
  *
  * Important!
  * poolPtr MUST be init in `start` func, to avoid the escape of `this` point.
  * MUST NOT modify poolPtr and sigToBlock after they are init,
- * except in the destructor
+ * except in the destructor.
  *
- * TODO find a better way
  */
-const static int MAX_SIG_CNT = 30;
-static pthread_mutex_t argvMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t poolPtrAndSigToBlockMutex = PTHREAD_MUTEX_INITIALIZER;
 static ThreadPool *poolPtr;
 static int sigToBlock[MAX_SIG_CNT + 1]{};
 
@@ -57,45 +47,63 @@ static ThreadPool *singleton = nullptr;
 static pthread_mutex_t singletonMutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct Task {
-    void *(*func)(void *){};
+    void *(*runnable)(void *) = nullptr;
 
-    void *argument{};
+    void (*callback)(void *) = nullptr;
 
-    void (*callback)(void *){};
+    void *argument = nullptr;
 
-    explicit Task(void *(*func)(void *),
+    explicit Task(void *(*runnable)(void *),
                   void *argument = nullptr,
                   void (*callback)(void *) = nullptr) {
-        this->func = func;
+        this->runnable = runnable;
         this->argument = argument;
         this->callback = callback;
     }
 
     bool isValid() const {
-        return this->func != nullptr;
+        return this->runnable != nullptr;
     }
 };
 
 /**
  * This threadPool is a fix threadPool.
  * <br/>
- * This class is thread safe.
- * This class can only Initialize one time, So I use Singleton mode.
+ * The public method inside this class is thread safe.
+ * This ThreadPool should be singleton in the whole application.
  */
 class ThreadPool {
 public:
 
     /**
+     * @note
      * After use this threadPool should delete this pointer.
-     * However, MUST make sure that only delete it one time!
+     * <br/>
+     * @warning
+     * MUST make sure that only delete it one time!
+     * <br/>
+     * If call other method (except this static getInstance)
+     * while another thread is delete the ThreadPool object,
+     * the behavior is Undefined!
+     * <br/>
+     * After delete the instance, and call getInstance,
+     * it will return a new ThreadPool instance.
+     *
+     * @param sigToBlock This array should end with nullptr.
+     * The max len of this array is 31(include the nullptr).
+     * The thread inside pool will only block signal on sigToBlock.
+     * @param threadCnt if it is larger that the maxThreadCnt(the OS's limit),
+     * it will replace by DEFAULT_THREAD_CNT.
      */
     // TODO find a better way to free this object
     static ThreadPool *getInstance(size_t threadCnt = DEFAULT_THREAD_CNT,
                                    const int *sigToBlock = nullptr) {
-        // MUST NOT use DCL: check whether singleton==nullptr before lock mutex.
-        // In Java, this may make thread find an incomplete singleton. (JCIP ch16)
-        // I don't know what will happen on pthread's memory model,
-        // but lock the mutex is a safe way.
+        /*
+         * MUST NOT use DCL: check whether singleton==nullptr before lock mutex.
+         * In Java, this may make thread find an incomplete singleton. (JCIP ch16)
+         * I don't know what will happen on pthread's memory model,
+         * but lock the mutex is a safe way.
+         */
         mutexLock(singletonMutex);
         if (singleton == nullptr) {
             singleton = new ThreadPool(threadCnt, sigToBlock);
@@ -105,7 +113,8 @@ public:
     }
 
     /**
-     * start this threadPool
+     * start this threadPool.
+     * call it after it had been called has no effect.
      */
     void start() {
         /*
@@ -114,17 +123,32 @@ public:
          * should NOT start thread in constructor, or the `this` point will escape.
          * which may make another thread see the incomplete construct object.
          */
-        if (state != NEW) {
-            // TODO replace this using exception
-            bug("call ThreadPool::start after start it", true);
+
+        /*
+         * If multiple thread call this start method,
+         * then there will only one thread get the mutex
+         * and init the state, create threads success,
+         * others will return.
+         * For any instance, only the getInstance call the constructor once,
+         * so if the state is not NEW, it will never be NEW.
+         */
+        mutexLock(taskQueAndStateMutex);
+        if (state == GRACEFUL_SHUTDOWN || state == IMMEDIATE_SHUTDOWN) {
+            // TODO replace it using exception
+            bug("MUST NOT call ThreadPool::start after shutdown it", true);
         }
+        if (state != NEW) {
+            mutexUnlock(taskQueAndStateMutex);
+            return;
+        }
+        this->state = RUNNING;
+        mutexUnlock(taskQueAndStateMutex);
 
         // the mutex act as memory barrier
-        mutexLock(argvMutex);
+        mutexLock(poolPtrAndSigToBlockMutex);
         ::poolPtr = this;
-        mutexUnlock(argvMutex);
+        mutexUnlock(poolPtrAndSigToBlockMutex);
 
-        this->state = RUNNING;
         // the mutex act as memory barrier
         mutexLock(threadArrayMutex);
         for (size_t i = 0; i < threadCnt; i++) {
@@ -138,7 +162,13 @@ public:
     }
 
     /**
-     * It is illegal to call this method before call start method.
+     * @note
+     * The first time call this method will lead to start this ThreadPool.
+     * Which will create the work threads.
+     * If you want to create the threads before addTask,
+     * call the start method beforehand.
+     * @warning
+     * Should NOT addTask after call shutdown method.
      * @return whether addTask success,
      * will fail when the taskQue is full or had called shutdown.
      */
@@ -162,12 +192,12 @@ public:
         // TODO maybe we can tolerate some inconsistency and improve the performance,
         //  this need more proof
         mutexLock(taskQueAndStateMutex);
+        if (state == GRACEFUL_SHUTDOWN || state == IMMEDIATE_SHUTDOWN) {
+            // TODO replace it using exception
+            bug("MUST NOT call ThreadPool::start after shutdown it", true);
+        }
         if (this->state == NEW) {
-            // TODO use exception to replace this
-            bug("call ThreadPool::addTask before start it");
-        } else if (this->state != RUNNING) {
-            // TODO replace this using exception
-            bug("try to add task after shutdown this thread pool", true);
+            start();
         }
         if (taskQue.size() >= MAX_TASK_CNT) {
             warning("ThreadPool::addTask taskQue is full");
@@ -175,9 +205,9 @@ public:
             return false;
         } else {
             // the unlock call MUST after signal call.
-            // queue will call copy constructor of Task.
+            // Note that queue will call copy constructor of Task,
             taskQue.push(task);
-            pthread_cond_signal(&this->notify);
+            conditionSignal(this->taskQueCondAndShutdownNotify);
             mutexUnlock(taskQueAndStateMutex);
             return true;
         }
@@ -185,11 +215,18 @@ public:
 
     /**
      * @param completeRest whether complete the rest of task.
-     * this method is thread safe
+     * @warning
+     * After call this shutdown, should NOT call other method.
+     * Except delete it and call getInstance to get a new instance.
+     * @note
+     * Call this shutdown after one thread had call it has no effect.
      */
     void shutdown(bool completeRest = true) {
         // MUST lock the mutex before change the state,
         // or while change state, there may be other thread addTask.
+        //
+        // Make sure that, after finish this shutdown method,
+        // call other method(except destructor and getInstance) will fail.
         mutexLock(taskQueAndStateMutex);
         if (completeRest) {
             this->state = GRACEFUL_SHUTDOWN;
@@ -199,10 +236,23 @@ public:
         mutexUnlock(taskQueAndStateMutex);
         // For that there may be threads wait for new task,
         // so I need to signal them.
-        pthread_cond_broadcast(&this->notify);
+        conditionBroadcast(this->taskQueCondAndShutdownNotify);
     }
 
     ~ThreadPool() {
+        // MUST make sure when call this destructor,
+        // the getInstance is NOT called.
+        // So this destructor should lock the singletonMutex.
+        //
+        // Needn't to worry user call other method while destructor running,
+        // user's such behavior is illegal.
+        //
+        // Needn't to destroy this poolPtrAndSigToBlockMutex and singletonMutex,
+        // it is safety to use it in multiple instance.
+
+        mutexLock(singletonMutex);
+        // when test, should test delete the object without call shutdown before.
+        // To test whether the thread handler the condition correctly
         this->shutdown();
 
         // the mutex act as memory barrier
@@ -212,13 +262,20 @@ public:
         }
         mutexUnlock(threadArrayMutex);
 
-        conditionDestroy(this->notify);
+        // the mutex act as memory barrier
+        mutexLock(poolPtrAndSigToBlockMutex);
+        ::poolPtr = nullptr;
+        memset(sigToBlock, 0, MAX_SIG_CNT + 1);
+        mutexUnlock(poolPtrAndSigToBlockMutex);
+
+        // we had lock singletonMutex above
+        ::singleton = nullptr;
+
+        conditionDestroy(this->taskQueCondAndShutdownNotify);
         mutexDestroy(this->taskQueAndStateMutex);
         mutexDestroy(this->threadArrayMutex);
-        mutexDestroy(::argvMutex);
-        mutexDestroy(::singletonMutex);
-        ::poolPtr = nullptr;
-        ::singleton = nullptr;
+
+        mutexUnlock(singletonMutex);
     }
 
 private:
@@ -228,13 +285,17 @@ private:
      * <br/>
      * The thread inside pool will only block signal on sigToBlock.
      */
+    /*
+     * only the getInstance called this constructor,
+     * the getInstance is protected by singletonMutex.
+     */
     explicit ThreadPool(size_t threadCnt = DEFAULT_THREAD_CNT,
                         const int *sigToBlock = nullptr)
             : threadCnt(computeThreadCnt(threadCnt)) {
         // make sure that the `this` point is NOT escaped
         startedThreadCnt = 0;
         state = NEW;
-        if (!conditionInit(notify)) {
+        if (!conditionInit(taskQueCondAndShutdownNotify)) {
             warning("init threadPool failed");
             return;
         }
@@ -244,10 +305,10 @@ private:
 
     void copySigToBlockArray(const int *sigToBlock) const {
         // the mutex act as memory barrier
-        mutexLock(argvMutex);
+        mutexLock(poolPtrAndSigToBlockMutex);
         if (sigToBlock == nullptr) {
             ::sigToBlock[0] = 0;
-            mutexUnlock(argvMutex);
+            mutexUnlock(poolPtrAndSigToBlockMutex);
             return;
         }
         int ind = 0;
@@ -259,10 +320,9 @@ private:
         if (sigToBlock[ind] != 0) {
             bug("ThreadPool's sigToBlock param is illegal");
         }
-        mutexUnlock(argvMutex);
+        mutexUnlock(poolPtrAndSigToBlockMutex);
     }
 
-    // TODO add a new thread when a thread exit
     static void *worker(void *argv) {
         /*
          * if the shutdown is called,
@@ -274,10 +334,10 @@ private:
         (void) argv;
 
         // act as memory barrier;
-        mutexLock(argvMutex);
+        mutexLock(poolPtrAndSigToBlockMutex);
         ThreadPool &pool = *::poolPtr;
         changeThreadSigMask(::sigToBlock, SIG_SETMASK);
-        mutexUnlock(argvMutex);
+        mutexUnlock(poolPtrAndSigToBlockMutex);
 
         if (pool.state == NEW) {
             bug("ThreadPool::worker should be run when the pool's state is NOT NEW");
@@ -286,14 +346,14 @@ private:
             mutexLock(pool.taskQueAndStateMutex);
             // when return from cond wait, should check whether the cond is still true.
             // if stat is gracefulShutdown, should not wait here.
-            while (pool.taskQue.empty() && pool.state.load() == RUNNING) {
-                conditionWait(pool.notify, pool.taskQueAndStateMutex);
+            while (pool.taskQue.empty() && pool.state == RUNNING) {
+                conditionWait(pool.taskQueCondAndShutdownNotify, pool.taskQueAndStateMutex);
             }
             // for that only the shutdown func call broadcast,
             // so if taskQue is empty, and the conditionWait return true,
             // one of these check will success
-            if ((pool.state.load() == IMMEDIATE_SHUTDOWN) ||
-                (pool.state.load() == GRACEFUL_SHUTDOWN && pool.taskQue.empty())) {
+            if ((pool.state == IMMEDIATE_SHUTDOWN) ||
+                (pool.state == GRACEFUL_SHUTDOWN && pool.taskQue.empty())) {
                 mutexUnlock(pool.taskQueAndStateMutex);
                 atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
                 return nullptr;
@@ -303,11 +363,14 @@ private:
             pool.taskQue.pop();
             mutexUnlock(pool.taskQueAndStateMutex);
 
-            void *r = task.func(task.argument);
+            // TODO
+            //  As we use the taskQueAndStateMutex,
+            //  Will we see the complete object that passed by user?
+            void *r = task.runnable(task.argument);
             if (task.callback) {
                 task.callback(r);
             }
-            if ((pool.state.load() == IMMEDIATE_SHUTDOWN)) {
+            if ((pool.state == IMMEDIATE_SHUTDOWN)) {
                 atomic_fetch_sub<int>(&(pool.startedThreadCnt), 1);
                 return nullptr;
             }
@@ -324,7 +387,7 @@ private:
 
 private:
     enum State {
-        // if change this state enum, then MUST check the program carefully
+        // if change this state enum, then MUST check the program carefully.
                 NEW, RUNNING, GRACEFUL_SHUTDOWN, IMMEDIATE_SHUTDOWN
     };
 
@@ -355,10 +418,29 @@ private:
      *
      * this cond's lock is taskQueAndStateMutex.
      */
-    pthread_cond_t notify{};
+    pthread_cond_t taskQueCondAndShutdownNotify{};
 
     atomic<int> startedThreadCnt{};
-    // the state's transformation:
-    // NEW->RUNNING->GRACEFUL_SHUTDOWN or IMMEDIATE_SHUTDOWN
+    /*
+     * the state's transformation:
+     * NEW->RUNNING->GRACEFUL_SHUTDOWN or IMMEDIATE_SHUTDOWN
+     * or
+     * NEW->GRACEFUL_SHUTDOWN or IMMEDIATE_SHUTDOWN
+
+     * In the constructor, the state is set to NEW.
+     * In the start method, the state is set to RUNNING.
+     * In the shutdown method, the state set to GRACEFUL_SHUTDOWN or IMMEDIATE_SHUTDOWN.
+
+     * proof of the state transformation safety.
+     * For any instance of this ThreadPool,
+     * the constructor run only one time,
+     * so for any instance, if it is not NEW state,
+     * it will never be NEW state.
+     * After the shutdown method is called,
+     * no other public method except destructor and getInstance can be called,
+     * so if it is shutdown state, it will always be shutdown state.
+     * Every time the state is modify, it is protected by taskQueAndStateMutex,
+     * so there is no thread safety problem.
+    */
     atomic<State> state{};
 };

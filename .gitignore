@@ -26,3 +26,4 @@ build/
 Testing/
 CTestTestfile.cmake
 UtilTest
+*.out

@@ -5,5 +5,6 @@
 #include "ToolsTest.hpp"
 
 int main() {
-    ToolsTest::testThreadPool();
+    // ToolsTest::testThreadPoolV1();
+    ToolsTest::testThreadPoolV2();
 }
