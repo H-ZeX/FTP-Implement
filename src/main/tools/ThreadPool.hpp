@@ -144,6 +144,9 @@ public:
         this->state = RUNNING;
         mutexUnlock(taskQueAndStateMutex);
 
+        // this sleep is help to test addTask before the threads is complete created
+        // usleep(10000);
+
         // the mutex act as memory barrier
         mutexLock(poolPtrAndSigToBlockMutex);
         ::poolPtr = this;
@@ -197,7 +200,9 @@ public:
             bug("MUST NOT call ThreadPool::start after shutdown it", true);
         }
         if (this->state == NEW) {
+            mutexUnlock(taskQueAndStateMutex);
             start();
+            mutexLock(taskQueAndStateMutex);
         }
         if (taskQue.size() >= MAX_TASK_CNT) {
             warning("ThreadPool::addTask taskQue is full");

@@ -15,7 +15,7 @@ static atomic_int addResultV1{};
 static atomic_int addResultV2{};
 static atomic_int finishCntV2{};
 
-class ToolsTest {
+class ThreadPoolTest {
 public:
     static void testThreadPoolV1() {
         srand(static_cast<unsigned int>(clock()));
@@ -28,7 +28,7 @@ public:
         int data[taskCnt];
         for (int &j : data) {
             j = 1;
-            pool->addTask(Task((ToolsTest::runnerV1), &j));
+            pool->addTask(Task((ThreadPoolTest::runnerV1), &j));
         }
         pool->shutdown(false);
         delete pool;
@@ -50,7 +50,7 @@ public:
             const int taskCnt = static_cast<const int>(random() % maxTaskCnt);
             pthread_t threads[threadCnt];
             for (int j = 0; j < threadCnt; j++) {
-                bool success = createThread(threads[j], ToolsTest::addTaskRunner, (void *) &taskCnt);
+                bool success = createThread(threads[j], ThreadPoolTest::addTaskRunner, (void *) &taskCnt);
                 if (!success) {
                     fprintf(stderr, "This test create too many threads!");
                     exit(0);
@@ -87,7 +87,8 @@ private:
         ThreadPool &pool = *ThreadPool::getInstance(100);
         // wait other thread
         usleep(static_cast<__useconds_t>(random() % 1000));
-        pool.start();
+        // should test when this statement is commented or not.
+        // pool.start();
 
         atomic_int endCnt{};
         // TODO is this array and its content visible to another thread?
@@ -95,7 +96,7 @@ private:
         for (int i = 0; i < taskCnt; i++) {
             argvArray[i].toAdd = i;
             argvArray[i].endCnt = &endCnt;
-            pool.addTask(Task(ToolsTest::runnerV2, &argvArray[i]));
+            pool.addTask(Task(ThreadPoolTest::runnerV2, &argvArray[i]));
         }
         while (endCnt != taskCnt) {
             pthread_yield();
