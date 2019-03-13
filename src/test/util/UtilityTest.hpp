@@ -49,7 +49,7 @@ public:
         const int maxSize = 1024;
         const int sizePerTimes = 100;
         int fd[2];
-        srand(clock());
+        srand(static_cast<unsigned int>(clock()));
         assert(pipe(fd) == 0);
         for (int i = 0; i < testCnt; i++) {
             const auto size = static_cast<const size_t>(random() % maxSize);
@@ -62,31 +62,17 @@ public:
             ReadBuf buf1;
             while (rest > 0) {
                 auto toWrite = static_cast<size_t>(random() % sizePerTimes);
-                // cout << "toWrite: " << toWrite << endl;
                 toWrite = min(toWrite, rest);
                 assert(writeAllData(fd[1], data + size - rest, toWrite));
                 {
                     int hadRead = 0;
                     while (hadRead < toWrite) {
                         int r = readWithBuf(fd[0], buf + size - rest + hadRead, toWrite - hadRead, buf1);
-                        // cout << "Read: " << r << endl;
                         assert(r > 0);
                         hadRead += r;
                     }
                 }
-                // {
-                //     size_t t = size - rest;
-                //     for (int j = 0; j < toWrite; j++) {
-                //         if (data[j + t] != buf[j + t]) {
-                //             cout << t + j << endl;
-                //             output(data, 0, t + toWrite);
-                //             output(buf, 0, t + toWrite);
-                //             assert(false);
-                //         }
-                //     }
-                // }
                 rest -= toWrite;
-                // cout << endl;
             }
             for (int k = 0; k < size; k++) {
                 if (buf[k] != data[k]) {
@@ -97,9 +83,9 @@ public:
                 }
                 assert(buf[k] == data[k]);
             }
-            // cout << "testSuccess: " << i << endl;
         }
-        cout << "IO Test success" << endl;
+        assert(closeFileDescriptor(fd[0]));
+        assert(closeFileDescriptor(fd[1]));
     }
 
     // TODO mutexInit's error situation had NOT tested
@@ -215,9 +201,8 @@ public:
 
             const int clientFd = openClientFd(thisMachineIP.c_str(), listenPort);
             assert(clientFd >= 3 && clientFd != listenFd);
-            const int ac1 = acceptConnect(listenFd);
-            assert(ac1 >= 3 && ac1 != clientFd && ac1 != listenFd);
-
+            const int acceptFd = acceptConnect(listenFd);
+            assert(acceptFd >= 3 && acceptFd != clientFd && acceptFd != listenFd);
             assert(writeAllData(clientFd, msg.c_str(), msg.size()));
             assert(closeFileDescriptor(clientFd));
 
@@ -225,7 +210,7 @@ public:
             ReadBuf cache;
             int before = 0;
             for (int j : spIndex) {
-                ReadLineReturnValue value = readLine(ac1, buf, static_cast<unsigned long>(bufSize - 1), cache);
+                ReadLineReturnValue value = readLine(acceptFd, buf, static_cast<unsigned long>(bufSize - 1), cache);
                 if ((value.recvCnt != (j - before))) {
                     for (int p : spIndex) {
                         cerr << p << "\t";
@@ -247,12 +232,15 @@ public:
                 assert(value.success);
                 before = j + 2;
             }
-            ReadLineReturnValue value = readLine(ac1, buf, static_cast<unsigned long>(bufSize - 1), cache);
+            ReadLineReturnValue value = readLine(acceptFd, buf, static_cast<unsigned long>(bufSize - 1), cache);
+            assert(closeFileDescriptor(acceptFd));
             assert(!value.success);
             assert(!value.isEndOfLine);
             assert(value.isEOF);
             assert(value.recvCnt == (msg.size() - before));
+            // cout << "success " << i << endl;
         }
+        assert(closeFileDescriptor(listenFd));
     }
 
     static void testConsumeUntilEndOfLine() {
@@ -276,6 +264,18 @@ public:
              << info.isValid << endl
              << info.uid << endl
              << info.username << endl;
+    }
+
+    static void testOpenDirAndCloseDir() {
+        DIR *stream = openDirWrap("/tmp");
+        assert(stream != nullptr);
+        closeDirWrap(stream);
+        stream = openDirWrap("/kkk");
+        assert(stream == nullptr);
+    }
+
+    static void testCloseDir() {
+        closeDirWrap(nullptr);
     }
 
 

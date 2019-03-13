@@ -1,12 +1,3 @@
-/**********************************************************************************
-*   Copyright © 2018 H-ZeX. All Rights Reserved.
-*
-*   File Name:    utility.h
-*   Author:       H-ZeX
-*   Create Time:  2018-08-14-11:19:33
-*   Describe:
-*
-**********************************************************************************/
 #ifndef __UTILITY_H__
 #define __UTILITY_H__
 
@@ -356,7 +347,7 @@ bool setNonBlocking(int fd) {
 UserInfo getUidGidHomeDir(const char *const username) {
     struct passwd pwd{}, *res;
     long t = Sysconf(_SC_GETPW_R_SIZE_MAX);
-    t = (t == -1) * UN_DETERMINATE_LIMIT + (t != -1) * t;
+    t = (t == -1) * UNDETERMINED_LIMIT + (t != -1) * t;
     char buf[t];
     int q;
     do {
@@ -450,6 +441,103 @@ bool consumeByteUntilEndOfLine(int fd, ReadBuf &cache) {
         }
     }
     return t <= 0;
+}
+
+/**
+ * @return whether get stat success.
+ */
+bool lstatWrap(const string &path, struct stat &statBuf) {
+    if (lstat(path.c_str(), &statBuf) < 0) {
+        if (errno == EBADE || errno == EFAULT
+            || errno == EBADF || errno == EINVAL) {
+            bugWithErrno("lstatWrap lstat failed", errno, true);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool statWrap(const string &path, struct stat &statBuf) {
+    if (stat(path.c_str(), &statBuf) < 0) {
+        if (errno == EBADE || errno == EFAULT
+            || errno == EBADF || errno == EINVAL) {
+            bugWithErrno("lstatWrap lstat failed", errno, true);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool isDir(struct stat &statBuf) {
+    return (statBuf.st_mode & S_IFMT) == S_IFDIR;
+}
+
+bool euidAccessWrap(const string &path, int type) {
+    if (euidaccess(path.c_str(), type) < 0) {
+        if (errno == EFAULT) {
+            bugWithErrno("euidAccessWrap euidaccess failed", errno, true);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool removeFile(const string &path) {
+    if (remove(path.c_str()) < 0) {
+        if (errno == EFAULT || errno == EBADF) {
+            bugWithErrno("removeFile remove failed", errno, true);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool mkdirWrap(const string &path, mode_t mode) {
+    if (mkdir(path.c_str(), mode) < 0) {
+        if (errno == EFAULT || errno == EBADF) {
+            bugWithErrno("mkdirWrap mkdir failed", errno, true);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @return whether get localtime success
+ */
+bool localtimeWrap(const time_t &time, struct tm &result) {
+    localtime_r(&time, &result);
+    if (errno == EOVERFLOW) {
+        warningWithErrno("localtimeWrap localtime_r failed", errno);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @return return nullptr if error occur.
+ */
+DIR *openDirWrap(const string &path) {
+    DIR *stream = opendir(path.c_str());
+    if (stream == nullptr) {
+        if (errno == EBADF || errno == ENOTDIR) {
+            bugWithErrno("openDirWrap opendir failed: ", errno, true);
+        } else {
+            return nullptr;
+        }
+    }
+    return stream;
+}
+
+void closeDirWrap(DIR *stream) {
+    if (closedir(stream) < 0) {
+        bugWithErrno("closeDirWrap closedir failed", errno, true);
+    }
 }
 
 #endif

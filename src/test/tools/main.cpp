@@ -2,9 +2,12 @@
 // Created by hzx on 19-3-9.
 //
 
-#include "ToolsTest.hpp"
+#include "ThreadPoolTest.hpp"
+#include "OtherToolsTest.hpp"
 
 int main() {
-    // ToolsTest::testThreadPoolV1();
-    ToolsTest::testThreadPoolV2();
+    // ThreadPoolTest::testThreadPoolV1();
+    // ThreadPoolTest::testThreadPoolV2();
+    // OtherToolsTest::testListFiles();
+    OtherToolsTest::testFS();
 }

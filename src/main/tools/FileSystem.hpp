@@ -1,47 +1,52 @@
-/**********************************************************************************
-*   Copyright © 2018 H-ZeX. All Rights Reserved.
-*
-*   File Name:    fileSystem.h
-*   Author:       H-ZeX
-*   Create Time:  2018-08-20-00:46:38
-*   Describe:
-*
-**********************************************************************************/
 #ifndef __FILE_SYSTEM_H__
 #define __FILE_SYSTEM_H__
 
 #include "src/main/util/Def.hpp"
-#include "ListFiles.h"
+#include "ListFiles.hpp"
 #include "src/main/util/Utility.hpp"
 
 using namespace std;
 
 /**
- * MT-safe
- * should use absolute path to call these func
- * for that when run in ide, the base path is not very sure
- * then these func may cause fatal error
+ * Thread-Safety: Unknown
  */
 class FileSystem {
-  public:
-    /**
-     * all these func
-     * @return whether success
-     */
-    static bool ls(const char *path, std::string &result);
-    static bool delFile(const char *pathname);
-    static bool delDir(const char *pathname);
-    static bool mkDir(const char *pathname);
+public:
+    static bool ls(const char *path, std::string &result) {
+        return isPathAbsolute(path) && (ListFiles::ls(path, result));
+    }
+
+    static bool delFileAndDir(const char *pathname) {
+        return isPathAbsolute(pathname) && removeFile(pathname);
+    }
+
+    static bool mkDir(const char *pathname) {
+        return isPathAbsolute(pathname) && mkdirWrap(pathname, S_IWUSR | S_IRUSR | S_IRGRP
+                                                               | S_IWGRP | S_IROTH | S_IWOTH);
+    }
+
     /**
      * @return (isSuccess, isDir);
      */
-    static PBB isDir(const char *path);
-    // this version is for the call outside of class
-    static bool isPathAbsolute(const string& path);
-    static bool isExistsAndReadable(const char *path);
+    static PBB isDir(const char *path) {
+        if (!isPathAbsolute(path)) {
+            return PBB(false, false);
+        }
+        struct stat statBuf{};
+        // here should use stat but not lstat
+        if (!statWrap(path, statBuf)) {
+            return PBB(false, false);
+        }
+        return PBB(true, ((statBuf.st_mode & S_IFMT) == S_IFDIR));
+    }
 
-  private:
-    static bool isAbsolute(const string &path);
-    static bool del(const char *pathname, bool isDir);
+    static bool isExistsAndReadable(const char *path) {
+        return isPathAbsolute(path) && euidAccessWrap(path, R_OK);
+    }
+
+    static bool isPathAbsolute(const string &path) {
+        return path[0] == '/';
+    }
 };
+
 #endif
