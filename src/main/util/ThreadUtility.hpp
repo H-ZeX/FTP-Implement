@@ -1,13 +1,3 @@
-/**********************************************************************************
-*   Copyright © 2018 H-ZeX. All Rights Reserved.
-*
-*   File Name:    threadUtility.h
-*   Author:       H-ZeX
-*   Create Time:  2018-08-23-15:35:59
-*   Describe:
-*
-**********************************************************************************/
-
 #ifndef __THREAD_UTILITY_H__
 #define __THREAD_UTILITY_H__
 

@@ -1,12 +1,3 @@
-/**********************************************************************************
-*   Copyright © 2018 H-ZeX. All Rights Reserved.
-*
-*   File Name:    def.h
-*   Author:       H-ZeX
-*   Create Time:  2018-08-15-10:01:14
-*   Describe:
-**********************************************************************************/
-
 #ifndef __DEF_H__
 #define __DEF_H__
 
@@ -22,7 +13,7 @@ using std::exception;
 
 // the backtrace's buf size
 #define BT_BUF_SIZE 100
-#define UN_DETERMINATE_LIMIT 0x1000
+#define UNDETERMINED_LIMIT 0x1000
 #define ERRNO_BUF_SIZE 256
 #define WARNING_BUF_SIZE (2 * ERRNO_BUF_SIZE)
 #define RECV_BUF_SIZE 1024

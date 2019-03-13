@@ -1,13 +1,3 @@
-/**********************************************************************************
-*   Copyright © 2018 H-ZeX. All Rights Reserved.
-*
-*   File Name:    netUtility.h
-*   Author:       H-ZeX
-*   Create Time:  2018-08-19-09:54:19
-*   Describe:
-*
-**********************************************************************************/
-
 #ifndef __NET_UTILITY_H__
 #define __NET_UTILITY_H__
 
@@ -37,8 +27,16 @@ int acceptConnect(int listenFd) {
     socklen_t clientAddrSize = sizeof(clientAddr);
     do {
         int fd = accept(listenFd, (SA *) &clientAddr, &clientAddrSize);
-        // TODO need to refine the errno handler
-        if (errno != EINTR) {
+        if (fd < 0) {
+            if (errno == EINTR) {
+                continue;
+            } else if (errno == EFAULT || errno == ENOTSOCK || errno == EOPNOTSUPP || errno == EPROTO) {
+                bugWithErrno("acceptConnect accept failed", errno, true);
+            } else {
+                warningWithErrno("acceptConnect accept failed", errno);
+                return -1;
+            }
+        } else {
             return fd;
         }
     } while (errno == EINTR);

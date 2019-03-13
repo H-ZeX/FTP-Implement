@@ -243,6 +243,13 @@ public:
         assert(closeFileDescriptor(listenFd));
     }
 
+    static void testAccept() {
+        // acceptConnect(3);
+        // acceptConnect(-1);
+        // acceptConnect(100);
+        acceptConnect(0);
+    }
+
     static void testConsumeUntilEndOfLine() {
         int fd[2];
         pipe(fd);

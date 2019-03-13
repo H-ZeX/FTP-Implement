@@ -18,8 +18,9 @@ int main() {
     // UtilityTest::testThread();
     // UtilityTest::testSignal();
     // UtilityTest::testNetworkAndReadLine("8083", 1024);
+    // UtilityTest::testAccept();
     // UtilityTest::testConsumeUntilEndOfLine();
     // UtilityTest::testGetUidGidHomeDir();
-    UtilityTest::testOpenDirAndCloseDir();
+    // UtilityTest::testOpenDirAndCloseDir();
     // UtilityTest::testCloseDir();
 }
