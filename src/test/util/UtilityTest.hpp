@@ -15,6 +15,11 @@ class UtilityTest {
 public:
 
     static void testBug() {
+        static int cnt = 0;
+        if (cnt < 30000) {
+            cnt++;
+            testBug();
+        }
         bug("TestBug");
     }
 
@@ -46,8 +51,8 @@ public:
 
     static void testIO() {
         const int testCnt = 1024;
-        const int maxSize = 1024;
-        const int sizePerTimes = 100;
+        const int maxSize = 102400;
+        const int sizePerTimes = 10000;
         int fd[2];
         srand(static_cast<unsigned int>(clock()));
         assert(pipe(fd) == 0);
@@ -183,7 +188,6 @@ public:
             assert(server.success);
             testOpOnListenFd(server.listenFd, to_string(server.port).c_str(), 10);
             assert(closeFileDescriptor(server.listenFd));
-            cout << "test openListenFd success " << i << endl;
         }
     }
 

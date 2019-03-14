@@ -13,7 +13,7 @@ class OtherToolsTest {
 public:
     static void testListFiles() {
         string result;
-        ListFiles::ls("/tmp", result);
+        ListFiles::ls("/tmp/", result);
         cout << result << endl;
         result.clear();
         ListFiles::ls("./main.cpp", result);

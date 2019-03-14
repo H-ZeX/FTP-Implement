@@ -53,27 +53,34 @@ private:
         if (!lstatWrap(path, statBuf)) {
             return false;
         }
-        // this bufSize also use to print the file size in decimal
-        // for that, 32bit decimal is very large
+        // this bufSize also use to print the file size in decimal.
         const size_t bufSize = std::max<size_t>(MAX_USERNAME_LEN,
                                                 MAX_GROUP_NAME_LEN);
         char printBuf[bufSize + 1];
         formatMode(statBuf.st_mode, result);
         result += " ";
+        /* the snprintf:
+         * The functions snprintf() write at most size bytes
+         * (including the terminating null byte ('\0')) to str.
+         *
+         * Upon successful return, these functions return the number of characters printed
+         * (excluding the null byte used to end output to strings).
+         */
         if (snprintf(printBuf, (bufSize + 1), "%s",
                      uid2Username(statBuf.st_uid).c_str()) > bufSize) {
-            bug("ListFiles::lsNotDir failed: username too long", true);
+            bug("ListFiles::lsNotDir failed: bufSize too small", false);
         }
         result += printBuf;
         result += " ";
-        if (snprintf(printBuf, bufSize + 1, "%s", gid2GroupName(statBuf.st_gid).c_str()) > bufSize) {
-            bug("ListFiles::lsNotDir groupName too long", false);
+        if (snprintf(printBuf, bufSize + 1, "%s",
+                     gid2GroupName(statBuf.st_gid).c_str()) > bufSize) {
+            bug("ListFiles::lsNotDir bufSize too small", false);
         }
         result += printBuf;
         result += " ";
         if (snprintf(printBuf, bufSize + 1, "%llu",
                      (unsigned long long) statBuf.st_size) > bufSize) {
-            bug("ListFiles::lsNotDir file size too large", false);
+            bug("ListFiles::lsNotDir bufSize too small", false);
         }
         result += printBuf;
         result += " ";
@@ -87,89 +94,105 @@ private:
 
     static bool lsDir(const string &path, std::string &result) {
         result.clear();
-        char pathname[PATH_MAX + 10], errnoBuf[ERRNO_BUF_SIZE];
+        char pathname[PATH_MAX + 10], errnoBuf[ERRNO_BUF_SIZE + 10];
         struct stat statBuf{};
         DIR *stream = openDirWrap(path);
         off_t maxSize = 0, maxNameLen = 0;
+        if (stream == nullptr) {
+            result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
+            return false;
+        }
         // Every time call readdir, should set errno=0,
         // in order to check whether there are error occur
         errno = 0;
         for (dirent *dep = readdir(stream);; errno = 0, dep = readdir(stream)) {
-            if (!dep && errno) {
+            if (dep == nullptr && errno != 0) {
                 result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
                 return false;
-            } else if (!dep) {
+            } else if (dep == nullptr) {
                 break;
             }
             mereString(pathname, (const char *const[]) {path.c_str(), "/",
                                                         dep->d_name, nullptr},
                        PATH_MAX);
-            if (!lstatWrap(path, statBuf)) {
+            if (!lstatWrap(pathname, statBuf)) {
+                result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
                 return false;
             }
             maxNameLen = std::max<off_t>(uid2Username(statBuf.st_uid).length(), maxNameLen);
             maxNameLen = std::max<off_t>(gid2GroupName(statBuf.st_gid).length(), maxNameLen);
             maxSize = std::max<off_t>(maxSize, statBuf.st_size);
         }
-        // to make the bufSize larger enough
-        // TODO find a better way
-        maxSize *= 1000000;
         closeDirWrap(stream);
 
+        // for that between find compute two var and list the dir below,
+        // there may be change on fileSystem
+        maxSize *= 1000000;
+        maxNameLen = static_cast<off_t>(maxNameLen * 1.25);
+
         stream = openDirWrap(path);
-        if (!stream) {
+        if (stream == nullptr) {
+            result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
             return false;
         }
-        char fmtName[20], fmtSize[20], printBuf[maxNameLen + 10];
-        if (snprintf(fmtName, 20, "%%%llus", (ull_t) maxNameLen) > 19) {
-            bug("ListFiles::lsDir buffer for fmName too short", false);
+        // This block is to construct the name and size's snprintf's format string.
+        // Because the output of name and size need to align.
+        char nameFmt[20], sizeFmt[20], namePrintBuf[maxNameLen + 10];
+        if (snprintf(nameFmt, 20, "%%%llus", (ull_t) maxNameLen) > 19) {
+            bug("ListFiles::lsDir buffer for fmName too small", true);
         }
-        if (snprintf(fmtSize, 20, "%%%dllu", numLen<ull_t>((ull_t) maxSize, 10)) > 19) {
-            bug("ListFiles::lsDir buffer for fmtSize to short", false);
+        if (snprintf(sizeFmt, 20, "%%%dllu", numLen<ull_t>((ull_t) maxSize, 10)) > 19) {
+            bug("ListFiles::lsDir buffer for sizeFmt to small", true);
         }
+
         errno = 0;
         for (dirent *dep = readdir(stream);; errno = 0, dep = readdir(stream)) {
-            if (dep == nullptr && errno) {
+            if (dep == nullptr && errno != 0) {
                 result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
                 return false;
             } else if (dep == nullptr) {
                 break;
             }
+
             mereString(pathname, (const char *const[]) {path.c_str(), "/", dep->d_name, nullptr}, PATH_MAX);
-            if (lstat(pathname, &statBuf) < 0) {
+            if (!lstatWrap(pathname, statBuf)) {
                 result = strerror_r(errno, errnoBuf, ERRNO_BUF_SIZE);
                 return false;
             }
             formatMode(statBuf.st_mode, result);
             result += " ";
-            if (snprintf(printBuf, static_cast<size_t>(maxNameLen + 1),
-                         fmtName, uid2Username(statBuf.st_uid).c_str())
+
+            if (snprintf(namePrintBuf, static_cast<size_t>(maxNameLen + 1),
+                         nameFmt, uid2Username(statBuf.st_uid).c_str())
                 > maxNameLen) {
-                bug("ListFiles::lsDir username too long", false);
+                bug("ListFiles::lsDir namePrintBuf size too small", false);
             }
-            result += printBuf;
+            result += namePrintBuf;
             result += " ";
-            if (snprintf(printBuf, static_cast<size_t>(maxNameLen + 1),
-                         fmtName, gid2GroupName(statBuf.st_gid).c_str())
+            if (snprintf(namePrintBuf, static_cast<size_t>(maxNameLen + 1),
+                         nameFmt, gid2GroupName(statBuf.st_gid).c_str())
                 > maxNameLen) {
-                bug("ListFiles::lsDir groupName too long", false);
+                bug("ListFiles::lsDir namePrintBuf size too small", false);
             }
-            result += printBuf;
+            result += namePrintBuf;
             result += " ";
+
             auto numLenOfMaxSize = static_cast<size_t>(numLen<size_t>(maxSize, 10));
-            char printSizeBuf[numLenOfMaxSize + 1];
-            if (snprintf(printSizeBuf, (numLenOfMaxSize + 1),
-                         fmtSize, (ull_t) statBuf.st_size)
-                > numLenOfMaxSize) {
-                bug("ListFiles::lsDir file size too large", false);
+            char sizePrintBuf[numLenOfMaxSize + 10];
+
+            if (snprintf(sizePrintBuf, (numLenOfMaxSize + 1),
+                         sizeFmt, (ull_t) statBuf.st_size) > numLenOfMaxSize) {
+                bug("ListFiles::lsDir sizePrintBuf size too small", false);
             }
-            result += printSizeBuf;
+            result += sizePrintBuf;
             result += " ";
+
             formatTime(statBuf.st_atime, result);
             result += " ";
             result += dep->d_name;
             result += END_OF_LINE;
         }
+        closeDirWrap(stream);
         return true;
     }
 
@@ -200,12 +223,11 @@ private:
         return groupName;
     }
 
-
     static std::string uid2Username(uid_t id) {
         size_t bufSize = std::max<size_t>(static_cast<const size_t &>(Sysconf(_SC_GETGR_R_SIZE_MAX)),
                                           static_cast<const size_t &>(Sysconf(_SC_GETPW_R_SIZE_MAX)));
         bufSize = bufSize < 0 ? UNDETERMINED_LIMIT : bufSize;
-        char *buf = new char[bufSize];
+        char *buf = new char[bufSize + 10];
         passwd data{}, *result;
         while (getpwuid_r(id, &data, buf, bufSize, &result) != 0) {
             if (errno == EINTR) {
@@ -213,7 +235,7 @@ private:
             } else if (errno == ERANGE) {
                 bufSize *= 2;
                 delete[]buf;
-                buf = new char[bufSize];
+                buf = new char[bufSize + 10];
             } else {
                 break;
             }

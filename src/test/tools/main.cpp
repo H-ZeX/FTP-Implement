@@ -8,6 +8,6 @@
 int main() {
     // ThreadPoolTest::testThreadPoolV1();
     // ThreadPoolTest::testThreadPoolV2();
-    // OtherToolsTest::testListFiles();
-    OtherToolsTest::testFS();
+    OtherToolsTest::testListFiles();
+    // OtherToolsTest::testFS();
 }

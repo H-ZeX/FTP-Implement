@@ -554,6 +554,7 @@ bool localtimeWrap(const time_t &time, struct tm &result) {
 
 /**
  * @return return nullptr if error occur.
+ * And errno is set appropriately
  */
 DIR *openDirWrap(const string &path) {
     DIR *stream = opendir(path.c_str());

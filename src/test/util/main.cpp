@@ -10,6 +10,14 @@ int main() {
     // UtilityTest::testMereString();
     // UtilityTest::testNumLen();
     // UtilityTest::testIO();
+    // UtilityTest::testNetworkAndReadLine("8083", 1024);
+    // UtilityTest::testOpenListenFd();
+    // UtilityTest::testAccept();
+    // UtilityTest::testConsumeUntilEndOfLine();
+    // UtilityTest::testGetUidGidHomeDir();
+    // UtilityTest::testOpenDirAndCloseDir();
+    // UtilityTest::testCloseDir();
+
     // UtilityTest::testCondition(10);
     // UtilityTest::testConditionSignal();
     // UtilityTest::testConditionBroadcast();
@@ -17,11 +25,4 @@ int main() {
     // UtilityTest::testTimedMutex();
     // UtilityTest::testThread();
     // UtilityTest::testSignal();
-    UtilityTest::testNetworkAndReadLine("8083", 1024);
-    UtilityTest::testOpenListenFd();
-    // UtilityTest::testAccept();
-    // UtilityTest::testConsumeUntilEndOfLine();
-    // UtilityTest::testGetUidGidHomeDir();
-    // UtilityTest::testOpenDirAndCloseDir();
-    // UtilityTest::testCloseDir();
 }
