@@ -132,6 +132,57 @@ int openListenFd(const char *port, int backLog = BACK_LOG) {
     return listenFd;
 }
 
+struct OpenListenFdReturnValue {
+    bool success{};
+    int listenFd{}, port{};
+
+    OpenListenFdReturnValue(bool success, int listenFd, int port) :
+            success(success), listenFd(listenFd), port(port) {}
+};
+
+/**
+ * Open an listenFd without specify the port(the OS will find an available port).
+ */
+OpenListenFdReturnValue openListenFd(int backLog = BACK_LOG) {
+    assert(backLog > 0);
+    int listenFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listenFd < 0) {
+        if (errno == EACCES || errno == EAFNOSUPPORT
+            || errno == EINVAL || errno == EPROTONOSUPPORT) {
+            bugWithErrno("openListenFd socket failed", errno, true);
+        } else {
+            return {false, -1, -1};
+        }
+    }
+    int opt = 1;
+    if (setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (const void *) &opt, sizeof(int)) < 0) {
+        bugWithErrno("openListenFd setsockopt failed", errno, true);
+    }
+    if (listen(listenFd, backLog) < 0) {
+        if (errno == EADDRINUSE) {
+            closeFileDescriptor(listenFd);
+            return {false, -1, -1};
+        } else {
+            bugWithErrno("openListenFd listen failed", errno, true);
+        }
+    }
+    sockaddr_in sin{};
+    socklen_t len = sizeof(sin);
+    if (getsockname(listenFd, (struct sockaddr *) &sin, &len) < 0) {
+        if (errno == ENOBUFS) {
+            closeFileDescriptor(listenFd);
+            return {false, -1, -1};
+        } else {
+            bugWithErrno("openListenFd getsockname failed", errno, true);
+        }
+    }
+    char netInfo[1024];
+    if (inet_ntop(AF_INET, &sin.sin_addr, netInfo, sizeof(netInfo)) == nullptr) {
+        bugWithErrno("openListenFd inet_ntop failed", errno, true);
+    }
+    return {true, listenFd, ntohs(sin.sin_port)};
+}
+
 /**
  * @return the result
  * if failed, return empty string

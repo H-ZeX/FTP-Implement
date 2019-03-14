@@ -167,15 +167,79 @@ public:
         kill(getpid(), SIGINT);
     }
 
-    static void testNetworkAndReadLine(const char *const listenPort, const int testCnt = 1024) {
+    static void testNetworkAndReadLine(const char *const listenPort,
+                                       const int testCnt = 1024) {
+        int listenFd = openListenFd(listenPort);
+        assert(listenFd >= 3);
+        testOpOnListenFd(listenFd, listenPort, testCnt);
+        assert(closeFileDescriptor(listenFd));
+        cout << "testNetworkAndReadLine success" << endl;
+    }
+
+    static void testOpenListenFd() {
+        const int testCnt = 1024;
+        for (int i = 0; i < testCnt; i++) {
+            OpenListenFdReturnValue server = openListenFd(1);
+            assert(server.success);
+            testOpOnListenFd(server.listenFd, to_string(server.port).c_str(), 10);
+            assert(closeFileDescriptor(server.listenFd));
+            cout << "test openListenFd success " << i << endl;
+        }
+    }
+
+    static void testAccept() {
+        // acceptConnect(3);
+        // acceptConnect(-1);
+        // acceptConnect(100);
+        acceptConnect(0);
+    }
+
+    static void testConsumeUntilEndOfLine() {
+        int fd[2];
+        pipe(fd);
+        string msg = "testMsg\r\ntestMsgTestMsg\r\n";
+        write(fd[1], msg.c_str(), msg.size());
+        ReadBuf cache;
+        assert(!consumeByteUntilEndOfLine(fd[0], cache));
+        char buf[100];
+        readLine(fd[0], buf, 100 - 1, cache);
+        assert(string(buf)=="testMsgTestMsg");
+    }
+
+    static void testGetUidGidHomeDir() {
+        UserInfo info = getUidGidHomeDir("hzx");
+        cout << info.cmdIp << endl
+             << info.cmdPort << endl
+             << info.gid << endl
+             << info.homeDir << endl
+             << info.isValid << endl
+             << info.uid << endl
+             << info.username << endl;
+    }
+
+    static void testOpenDirAndCloseDir() {
+        DIR *stream = openDirWrap("/tmp");
+        assert(stream != nullptr);
+        closeDirWrap(stream);
+        stream = openDirWrap("/kkk");
+        assert(stream == nullptr);
+    }
+
+    static void testCloseDir() {
+        closeDirWrap(nullptr);
+    }
+
+
+private:
+
+    static void testOpOnListenFd(int listenFd, const char *const listenPort,
+                                 int testCnt) {
         const int maxBufSize = 1024;
         const int maxMsgLen = 1024 * 10;
         const int maxLineLen = 100;
 
-        const int listenFd = openListenFd(listenPort);
         assert(listenFd >= 3);
         const string thisMachineIP = getThisMachineIp();
-
         // TODO, only test when the buf can contain the full line.
         // should add test that the buf can not contain one line.
         for (int i = 0; i < testCnt; i++) {
@@ -240,53 +304,7 @@ public:
             assert(value.recvCnt == (msg.size() - before));
             // cout << "success " << i << endl;
         }
-        assert(closeFileDescriptor(listenFd));
     }
-
-    static void testAccept() {
-        // acceptConnect(3);
-        // acceptConnect(-1);
-        // acceptConnect(100);
-        acceptConnect(0);
-    }
-
-    static void testConsumeUntilEndOfLine() {
-        int fd[2];
-        pipe(fd);
-        string msg = "testMsg\r\ntestMsgTestMsg\r\n";
-        write(fd[1], msg.c_str(), msg.size());
-        ReadBuf cache;
-        assert(!consumeByteUntilEndOfLine(fd[0], cache));
-        char buf[100];
-        readLine(fd[0], buf, 100 - 1, cache);
-        assert(string(buf)=="testMsgTestMsg");
-    }
-
-    static void testGetUidGidHomeDir() {
-        UserInfo info = getUidGidHomeDir("hzx");
-        cout << info.cmdIp << endl
-             << info.cmdPort << endl
-             << info.gid << endl
-             << info.homeDir << endl
-             << info.isValid << endl
-             << info.uid << endl
-             << info.username << endl;
-    }
-
-    static void testOpenDirAndCloseDir() {
-        DIR *stream = openDirWrap("/tmp");
-        assert(stream != nullptr);
-        closeDirWrap(stream);
-        stream = openDirWrap("/kkk");
-        assert(stream == nullptr);
-    }
-
-    static void testCloseDir() {
-        closeDirWrap(nullptr);
-    }
-
-
-private:
 
     static void outputStr(string s) {
         for (char i : s) {

@@ -35,5 +35,4 @@ public:
     }
 };
 
-
 #endif //FTP_SERVER_OTHER_TOOLS_TEST_HPP

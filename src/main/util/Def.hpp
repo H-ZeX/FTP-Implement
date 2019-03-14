@@ -45,6 +45,7 @@ using std::exception;
 #define PBI pair<bool, int>
 #define SA sockaddr
 #define byte char
+#define PII std::pair<int, int>
 #define PBB std::pair<bool, bool>
 #define PPI std::pair<PBB, int>
 #define PSI std::pair<std::string, int>

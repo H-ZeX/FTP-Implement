@@ -17,7 +17,8 @@ int main() {
     // UtilityTest::testTimedMutex();
     // UtilityTest::testThread();
     // UtilityTest::testSignal();
-    // UtilityTest::testNetworkAndReadLine("8083", 1024);
+    UtilityTest::testNetworkAndReadLine("8083", 1024);
+    UtilityTest::testOpenListenFd();
     // UtilityTest::testAccept();
     // UtilityTest::testConsumeUntilEndOfLine();
     // UtilityTest::testGetUidGidHomeDir();
