@@ -72,8 +72,8 @@ void bug(const char *const msg, bool willExit = true, int lineNum = -1) {
         }
     }
     funlockfile(stderr);
-    // free(nullptr) is legal
-    free(str);
+    // delete nullptr is legal
+    delete str;
     if (willExit) {
         exit(BUG_EXIT);
     }
@@ -105,7 +105,7 @@ void warningWithErrno(const char *const msg, errno_t code) {
     char errnoBuf[ERRNO_BUF_SIZE], warningBuf[WARNING_BUF_SIZE];
     if (snprintf(warningBuf, WARNING_BUF_SIZE, "%s: %s", msg,
                  strerror_r(code, errnoBuf, ERRNO_BUF_SIZE)) >= WARNING_BUF_SIZE) {
-        bug("warningWithErrno snprintf buffer size too small", false);
+        bug("warningWithErrno snprintf buffer size too small", true);
     }
     warning(warningBuf);
 }
@@ -171,7 +171,7 @@ bool makeSureFdType(int fd, int type) {
  */
 char *mereString(char *dest, const char *const strArray[], size_t maxLen) {
     string result;
-    for (int i = 0; strArray[i] != 0; i++) {
+    for (int i = 0; strArray[i] != nullptr; i++) {
         result += strArray[i];
     }
     size_t len = min(maxLen, result.size());
@@ -219,6 +219,15 @@ byte *byteCpy(byte *dest, const byte *const src, int n) {
     return dest;
 }
 
+struct ReadBuf {
+    const size_t size = READ_BUF_SIZE;
+    byte buf[READ_BUF_SIZE]{};
+    // point to the start of haven't read substr
+    byte *next = buf;
+    //  remainderSize is size of byte that can be read
+    int remainderSize = 0;
+};
+
 /**
  * @return The size had read, 0 if EOF(or want==0),
  * -1 if error occur, the errno will be set appropriately.
@@ -239,9 +248,8 @@ int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
         return t;
     }
     assert(buf.remainderSize == 0);
-    ssize_t cnt;
     do {
-        cnt = read(fd, buf.buf, buf.size);
+        ssize_t cnt = read(fd, buf.buf, buf.size);
         if (cnt < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 return 0;
@@ -280,7 +288,6 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
     if (size == 0) {
         return true;
     }
-    // TODO, need to check the errno handler again
     while (size > 0) {
         ssize_t r = write(fd, buf, size);
         if (r < 0) {
@@ -341,24 +348,45 @@ bool setNonBlocking(int fd) {
     return (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK) == -1);
 }
 
+struct UserInfo {
+    bool isValid = false;
+    uid_t uid = 0;
+    gid_t gid = 0;
+    string cmdIp = "";
+    string cmdPort = "";
+    string username = "";
+    string homeDir = "";
+
+    UserInfo(bool isValid, uid_t uid, gid_t gid,
+             const string &ip, const string &port,
+             const string &username, const char *const homeDir) {
+        this->isValid = isValid;
+        this->uid = uid;
+        this->gid = gid;
+        this->cmdIp = ip;
+        this->cmdPort = port;
+        this->username = username;
+        this->homeDir = homeDir;
+    }
+};
+
 /**
  * Thread-Safety: MT-Safe locale
  */
 UserInfo getUidGidHomeDir(const char *const username) {
-    struct passwd pwd{}, *res;
-    long t = Sysconf(_SC_GETPW_R_SIZE_MAX);
-    t = (t == -1) * UNDETERMINED_LIMIT + (t != -1) * t;
-    char buf[t];
+    struct passwd pwd{}, *res = nullptr;
+    long limit = Sysconf(_SC_GETPW_R_SIZE_MAX);
+    limit = limit == -1 ? UNDETERMINED_LIMIT : limit;
+    char buf[limit];
     int q;
     do {
-        q = getpwnam_r(username, &pwd, buf, t, &res);
+        q = getpwnam_r(username, &pwd, buf, static_cast<size_t>(limit), &res);
     } while (q == EINTR);
     if (q != 0) {
         warningWithErrno("getUidGidHomeDir failed", q);
     }
     return UserInfo(q == 0 && res != nullptr, pwd.pw_uid, pwd.pw_gid, "", "", username, pwd.pw_dir);
 }
-
 
 struct ReadLineReturnValue {
     /**
@@ -426,7 +454,11 @@ ReadLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cac
 }
 
 /**
- * @return true if EOF occur
+ * @return whether EOF occur
+ * @warning
+ * This function only work when the str doesn't contain alone CR or LR
+ * @note
+ * This method will block even the fd is nonblock
  *
  * MT-Safety: Unknown(because the `read` function's Thread-Safety is Unknown)
  */
@@ -434,13 +466,14 @@ bool consumeByteUntilEndOfLine(int fd, ReadBuf &cache) {
     // TODO, this function only work when the str doesn't contain alone CR or LR
     assert(fd >= 3);
     byte buf[10];
-    int t;
-    while ((t = readWithBuf(fd, buf, 1, cache)) > 0) {
+    while (readWithBuf(fd, buf, 1, cache) > 0
+           || errno == EAGAIN || errno == EWOULDBLOCK) {
         if (buf[0] == END_OF_LINE[SIZEOF_END_OF_LINE - 1]) {
             return false;
         }
     }
-    return t <= 0;
+    // error will be treated as EOF
+    return true;
 }
 
 /**
