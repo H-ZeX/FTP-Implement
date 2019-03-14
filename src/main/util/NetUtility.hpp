@@ -177,7 +177,7 @@ OpenListenFdReturnValue openListenFd(int backLog = BACK_LOG) {
         }
     }
     char netInfo[1024];
-    if (inet_ntop(AF_INET, &sin.sin_addr, netInfo, sizeof(netInfo)) == nullptr) {
+    if (inet_ntop(AF_INET, &sin.sin_addr, netInfo, sizeof(netInfo) - 10) == nullptr) {
         bugWithErrno("openListenFd inet_ntop failed", errno, true);
     }
     return {true, listenFd, ntohs(sin.sin_port)};
@@ -189,9 +189,9 @@ OpenListenFdReturnValue openListenFd(int backLog = BACK_LOG) {
  * MT-safe env local
  */
 const string getThisMachineIp() {
-    char line[100], *p, *c, *save;
+    char line[1024]{}, *p{}, *c{}, *save{};
     FILE *routeFile = fopen("/proc/net/route", "r");
-    while (fgets(line, 100, routeFile)) {
+    while (fgets(line, sizeof(line) - 10, routeFile)) {
         p = strtok_r(line, " \t", &save);
         c = strtok_r(nullptr, " \t", &save);
         if (p != nullptr && c != nullptr) {
@@ -200,9 +200,9 @@ const string getThisMachineIp() {
             }
         }
     }
-    int fm = AF_INET, family;
-    ifaddrs *addr;
-    char host[NI_MAXHOST];
+    int fm = AF_INET, family{};
+    ifaddrs *addr{};
+    char host[NI_MAXHOST + 10]{};
     if (getifaddrs(&addr) == -1) {
         // TODO errno handler should be refined
         warningWithErrno("getThisMachineIp getifaddrs failed", errno);
@@ -217,7 +217,7 @@ const string getThisMachineIp() {
             continue;
         }
         int s = getnameinfo(ifa->ifa_addr,
-                            sizeof(struct sockaddr_in),
+                            sizeof(sockaddr_in),
                             host, NI_MAXHOST,
                             nullptr, 0,
                             NI_NUMERICHOST);
