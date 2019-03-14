@@ -11,6 +11,7 @@ int main() {
     // UtilityTest::testNumLen();
     // UtilityTest::testIO();
     // UtilityTest::testNetworkAndReadLine("8083", 1024);
+    UtilityTest::testOpenWrap();
     // UtilityTest::testOpenListenFd();
     // UtilityTest::testAccept();
     // UtilityTest::testConsumeUntilEndOfLine();

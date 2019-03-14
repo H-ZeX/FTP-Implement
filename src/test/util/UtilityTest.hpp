@@ -181,6 +181,15 @@ public:
         cout << "testNetworkAndReadLine success" << endl;
     }
 
+    static void testOpenWrap() {
+        assert(openWrapV1("/tmp/33ws", 0) == -1);
+        assert(openWrapV1("/tmp/2ttt", 0) >= 3);
+        assert(openWrapV2("/tmp/3dd3", 0, 0) == -1);
+        assert(openWrapV2("/tmp/2ttt", 0, 0) >= 3);
+        // openWrapV1((char *) 1, 0);
+        // openWrapV2(nullptr, 0, 0);
+    }
+
     static void testOpenListenFd() {
         const int testCnt = 1024;
         for (int i = 0; i < testCnt; i++) {

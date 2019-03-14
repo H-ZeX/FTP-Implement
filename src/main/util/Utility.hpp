@@ -219,6 +219,49 @@ byte *byteCpy(byte *dest, const byte *const src, int n) {
     return dest;
 }
 
+/**
+ *
+ * @param flags same as open function's flags param
+ * @return -1 if failed, otherwise the fd
+ */
+int openWrapV1(const char *const path, int flags) {
+    int fd = open(path, flags);
+    while (fd < 0) {
+        if (errno == EFAULT || errno == EINVAL) {
+            bugWithErrno("openWrap open failed", errno, true);
+        } else if (errno == EINTR) {
+            fd = open(path, flags);
+            continue;
+        } else {
+            warningWithErrno("openWrap open failed", errno);
+            return -1;
+        }
+    }
+    return fd;
+}
+
+/**
+ * @param flag1 same as open function's first flags param
+ * @param flag2 same as open function's second flags param
+ * @return -1 if failed, otherwise the fd
+ */
+int openWrapV2(const char *const path, int flag1, int flag2) {
+    int fd = open(path, flag1, flag2);
+    while (fd < 0) {
+        if (errno == EFAULT || errno == EINVAL) {
+            bugWithErrno("openWrap open failed", errno, true);
+        } else if (errno == EINTR) {
+            fd = open(path, flag1, flag2);
+            continue;
+        } else {
+            warningWithErrno("openWrap open failed", errno);
+            return -1;
+        }
+    }
+    return fd;
+}
+
+
 struct ReadBuf {
     const size_t size = READ_BUF_SIZE;
     byte buf[READ_BUF_SIZE]{};
