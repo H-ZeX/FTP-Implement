@@ -190,8 +190,7 @@ public:
         // openWrapV2(nullptr, 0, 0);
     }
 
-    static void testOpenListenFd() {
-        const int testCnt = 1024;
+    static void testOpenListenFd(const int testCnt = 1024) {
         for (int i = 0; i < testCnt; i++) {
             OpenListenFdReturnValue server = openListenFd(1);
             assert(server.success);

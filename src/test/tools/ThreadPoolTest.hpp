@@ -8,6 +8,8 @@
 
 #include <src/main/tools/ThreadPool.hpp>
 
+#include "src/test/util/UtilityTest.hpp"
+
 // testThreadPoolV1 param
 static atomic_int addResultV1{};
 
@@ -78,6 +80,15 @@ public:
         }
     }
 
+    static void testThreadPoolV3() {
+        ThreadPool *pool = ThreadPool::getInstance();
+        const int testCnt = 5;
+        for (int i = 0; i < testCnt; i++) {
+            pool->addTask(Task(ThreadPoolTest::runnerV3));
+        }
+        delete pool;
+    }
+
 private:
     /**
      * add 0...taskCnt-1 to the addResultV2 using ThreadPool
@@ -124,6 +135,12 @@ private:
         usleep(static_cast<__useconds_t>(random() % 1000));
         atomic_fetch_add(&addResultV2, argv.toAdd);
         atomic_fetch_add((argv.endCnt), 1);
+        return nullptr;
+    }
+
+    static void *runnerV3(void *param) {
+        (void) param;
+        UtilityTest::testOpenListenFd(10);
         return nullptr;
     }
 };

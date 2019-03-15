@@ -17,7 +17,6 @@ set(SRC
         src/main/main.cpp
         src/main/util/NetUtility.hpp
         src/main/core/NetworkSession.hpp
-        src/main/core/PreLogin.cpp
         src/main/core/Login.hpp
         src/main/core/Session.hpp
         src/main/tools/ThreadPool.hpp
@@ -33,13 +32,19 @@ set(ToolsTestSrc
         src/test/tools/ThreadPoolTest.hpp
         src/test/tools/OtherToolsTest.hpp)
 
+set(CoreTestSrc
+        src/test/core/main.cpp
+        src/test/core/CoreTest.hpp)
+
 add_executable(${PROJECT_NAME} ${SRC})
 add_executable(UtilTest ${UtilTestSrc})
 add_executable(ToolsTest ${ToolsTestSrc})
+add_executable(CoreTest ${CoreTestSrc})
 
 enable_testing()
 add_test(UTest UtilTest)
 add_test(TTest ToolsTest)
+add_test(CTest CoreTest)
 
 #target_compile_options(UtilTest PUBLIC -fprofile-arcs -ftest-coverage)
 #target_compile_options(ToolsTest PUBLIC -fprofile-arcs -ftest-coverage)
@@ -50,3 +55,4 @@ target_link_libraries(${PROJECT_NAME} -lpthread -rdynamic -lcrypt)
 #target_link_libraries(ToolsTest -lpthread -rdynamic -lgcov --coverage)
 target_link_libraries(UtilTest -lpthread -rdynamic)
 target_link_libraries(ToolsTest -lpthread -rdynamic)
+target_link_libraries(CoreTest -lcrypt -lpthread -rdynamic)
