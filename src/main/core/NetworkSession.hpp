@@ -1,12 +1,30 @@
 #include "src/main/util/Def.hpp"
 #include "src/main/util/NetUtility.hpp"
 #include "src/main/util/Utility.hpp"
+
 #include <cstdlib>
 #include <ctime>
 #include <src/main/util/Def.hpp>
 
 using std::pair;
 using std::string;
+
+struct RecvCmdReturnValue {
+    bool success{}, isEOF{};
+    int cnt{};
+
+    RecvCmdReturnValue(bool success, bool isEOF, int cnt)
+            : success(success), isEOF(isEOF), cnt(cnt) {}
+
+};
+
+struct OpenDataListenReturnValue {
+    bool success{};
+    int port{};
+
+    OpenDataListenReturnValue(bool success, int port)
+            : success(success), port(port) {}
+};
 
 class NetworkSession {
 public:
@@ -18,137 +36,152 @@ public:
         if (fd < 0) {
             bug("NetworkSession::setCmdFD: the param is illegal");
         }
-        fprintf(stderr, "NetworkSession::setCmdFd: %d\n", fd);
         this->cmdFd = fd;
     }
 
-    PBI openDataListen() {
+    OpenDataListenReturnValue openDataListen() {
         // Only one user will use this fd, so backLog set to 1.
-        PII fd = openListenFd(1);
-        this->dataListenFd = fd.first;
-        return PBI(fd.first > 0, fd.second);
+        OpenListenFdReturnValue fd = openListenFd(1);
+        this->dataListenFd = fd.success ? fd.listenFd : -1;
+        return {fd.success, fd.port};
     }
 
     bool acceptDataConnect() {
+        if (this->dataListenFd < 0) {
+            bug("NetworkSession::acceptDataConnect: accept connection while this->dataListenFd<0");
+        }
         this->dataFd = acceptConnect(this->dataListenFd);
+        assert(this->dataFd < 0 || this->dataFd >= 3);
         return this->dataFd >= 0;
     }
 
     bool openDataConnection(const char *hostname, const char *port) {
         this->dataFd = openClientFd(hostname, port);
+        assert(this->dataFd < 0 || this->dataFd >= 3);
         return this->dataFd >= 0;
     }
 
     bool closeDataListen() {
-        return closeFileDescriptor(this->dataListenFd);
+        if (this->dataListenFd < 0) {
+            bug("NetworkSession::closeDataListen: closeDataListen while this->dataListenFd<0");
+        }
+        bool ret = closeFileDescriptor(this->dataListenFd);
+        this->dataListenFd = -1;
+        return ret;
     }
 
     bool closeDataConnect() {
-        return closeFileDescriptor(this->dataFd);
+        if (this->dataFd < 0) {
+            bug("NetworkSession::closeDataConnect: closeDataListen while this->dataFd<0");
+        }
+        bool ret = closeFileDescriptor(this->dataFd);
+        this->dataFd = -1;
+        return ret;
     }
-    /**
-     * @return ((isEND_OF_LINE, isEOF), size)
-     * if isEOL == false, then will clear the stream to the EOL
-     * (however, still return isEOL==false)
-     * the buf will end with 0 and without END_OF_LINE
-     */
-    PPI recvCmd(char *buf, size_t bufSize = CMD_MAX_LEN) {
-        PPI p = readLine(this->cmdFd, buf, bufSize, bufForCmd);
-        if (!p.first.first) {
-            bool t = consumeByteUntilEndOfLine(this->cmdFd, bufForCmd);
-            return PPI(PBB(false, t), p.second);
+
+    RecvCmdReturnValue recvCmd(char *buf, size_t bufSize) {
+        if (this->cmdFd < 0) {
+            bug("NetworkSession::recvCmd: recvCmd while this->cmdFd<0");
+        }
+        ReadLineReturnValue ret = readLine(this->cmdFd, buf, bufSize, bufForCmdFd);
+        if (!ret.success) {
+            bool isEOF = consumeByteUntilEndOfLine(this->cmdFd, bufForCmdFd);
+            return {false, isEOF, -1};
         } else {
-            return p;
+            return {true, ret.isEOF, static_cast<int>(ret.recvCnt)};
         }
     }
 
-    /**
-     * @return whether write all data to the fd succeed
-     */
     bool sendToCmdFd(const char *msg, size_t len) {
-        return writeAllData(this->cmdFd, (const byte *) msg, len);
+        if (this->cmdFd < 0) {
+            bug("NetworkSession::sendToCmdFd: sendToCmdFd while this->cmdFd<0");
+        }
+        return writeAllData(this->cmdFd, msg, len);
     }
 
     bool sendToDataFd(const byte *data, size_t len) {
+        if (this->dataFd < 0) {
+            bug("NetworkSession::sendToDataFd: sendToDataFd while this->dataFd<0");
+        }
         return writeAllData(this->dataFd, data, len);
     }
 
-    bool sendFile(const char *path) {
-        int fd = open(path, O_RDONLY);
-        if (fd == -1) {
-            warningWithErrno("NetworkSession::sendFile");
+    bool sendLocalFile(const char *const path) {
+        if (this->dataFd < 0) {
+            bug("NetworkSession::sendLocalFile: sendLocalFile while this->dataFd<0");
+        }
+        int localFileFd = openWrapV1(path, O_RDONLY);
+        if (localFileFd == -1) {
             return false;
         }
-        byte buf[READ_BUF_SIZE];
-        int t;
-        while ((t = read(fd, buf, READ_BUF_SIZE)) > 0 || errno == EINTR) {
-            if (t > 0 && !this->sendToDataFd(buf, t)) {
-                closeFileDescriptor(fd);
-                return false;
-            }
-        }
-        if (t == 0) {
-            return closeFileDescriptor(fd);
-        } else {
-            warningWithErrno("NetworkSession::sendFile");
-            return false;
-        }
-    }
-
-    bool recvAndWriteFile(const char *path) {
-        int fd = open(path, O_CREAT | O_WRONLY, S_IWUSR | S_IRUSR | S_IWOTH | S_IROTH | S_IWGRP | S_IRGRP);
-        if (fd == -1) {
-            warningWithErrno("NetworkSession::recvAndWriteFile");
-            return false;
-        }
-        byte buf[RECV_BUF_SIZE];
+        byte buf[READ_BUF_SIZE + 10];
+        ReadBuf readBuf{};
         while (true) {
-            PPI t = recvFromDataFd(buf, RECV_BUF_SIZE);
-            if (!t.first.first) {
-                closeFileDescriptor(fd);
+            int t = readWithBuf(localFileFd, buf, READ_BUF_SIZE, readBuf);
+            if (t < 0) {
+                warningWithErrno("sendLocalFile readWithBuf failed", errno);
+                closeFileDescriptor(localFileFd);
                 return false;
+            } else if (t == 0) {
+                closeFileDescriptor(localFileFd);
+                return true;
             } else {
-                if (t.second > 0 && !writeAllData(fd, buf, t.second)) {
-                    closeFileDescriptor(fd);
+                if (!writeAllData(this->dataFd, buf, static_cast<size_t>(t))) {
+                    closeFileDescriptor(localFileFd);
                     return false;
                 }
             }
-            if (t.first.second) {
-                return closeFileDescriptor(fd);
+        }
+    }
+
+    bool recvRemoteAndWriteLocalFile(const char *const path) {
+        if (this->dataFd < 0) {
+            bug("NetworkSession::recvRemoteAndWriteLocalFile recvRemoteAndWriteLocalFile  while this->dataFd<0");
+        }
+        int localFileFd = openWrapV2(path, O_CREAT | O_WRONLY,
+                                     S_IWUSR | S_IRUSR | S_IWOTH
+                                     | S_IROTH | S_IWGRP | S_IRGRP);
+        byte buf[RECV_BUF_SIZE + 10];
+        ReadBuf cache{};
+        while (true) {
+            int hadRead = readWithBuf(this->dataFd, buf, RECV_BUF_SIZE, cache);
+            if (hadRead < 0) {
+                closeFileDescriptor(localFileFd);
+                return false;
+            } else if (hadRead > 0) {
+                if (writeAllData(localFileFd, buf, static_cast<size_t>(hadRead))) {
+                    continue;
+                } else {
+                    closeFileDescriptor(localFileFd);
+                    return false;
+                }
+            } else {
+                return closeFileDescriptor(localFileFd);
             }
         }
     }
 
-    NetworkSession() {
-        this->cmdFd = -1;
-        this->dataFd = -1;
-        this->dataListenFd = -1;
-    }
-
     ~NetworkSession() {
-        this->closeDataListen();
-        this->closeDataConnect();
+        if (this->dataListenFd >= 3) {
+            this->closeDataListen();
+        }
+        if (this->dataFd >= 3) {
+            this->closeDataConnect();
+        }
     }
 
 private:
-    /**
-     * @return ((isSuccess, isEOF), cnt)
+    /*
+     * The cmdFd is pass from outside,
+     * so DON'T close it.
+     * The dataFd is opened by this class,
+     * so should close it.
+     *
+     * The dataFd and dataListenFd should be -1 is it is not valid.
+     * This means when close, should set them to -1.
      */
-    PPI recvFromDataFd(byte *data, size_t len) {
-        int t = 0, cnt = 0;
-        while ((len - cnt > 0) &&
-               ((t = read(this->dataFd, data + cnt, len - cnt)) > 0 || errno == EINTR)) {
-            cnt += (t != -1) * t;
-        }
-        if (t == -1) {
-            warningWithErrno("NetworkSession::recvFromDataFd");
-        }
-        return PPI(PBB(t != -1, t == 0), cnt);
-    }
-
-private:
-    int cmdFd;
-    int dataFd;
-    int dataListenFd;
-    ReadBuf bufForCmd;
+    int cmdFd = -1;
+    int dataFd = -1;
+    int dataListenFd = -1;
+    ReadBuf bufForCmdFd{};
 };

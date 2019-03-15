@@ -5,6 +5,7 @@
 #include "CoreTest.hpp"
 
 int main() {
-    CoreTest::testLogin();
+    // CoreTest::testLogin();
+    CoreTest::testNetworkSession();
 }
 
