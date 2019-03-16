@@ -10,8 +10,9 @@ int main() {
     // UtilityTest::testMereString();
     // UtilityTest::testNumLen();
     // UtilityTest::testIO();
+    UtilityTest::testReadAllAndWriteAll();
     // UtilityTest::testNetworkAndReadLine("8083", 1024);
-    UtilityTest::testOpenWrap();
+    // UtilityTest::testOpenWrap();
     // UtilityTest::testOpenListenFd();
     // UtilityTest::testAccept();
     // UtilityTest::testConsumeUntilEndOfLine();

@@ -1,3 +1,6 @@
+#ifndef __NETWORK_MANAGER_H__
+#define  __NETWORK_MANAGER_H__
+
 #include "src/main/util/Def.hpp"
 #include "src/main/util/NetUtility.hpp"
 #include "src/main/util/Utility.hpp"
@@ -26,7 +29,7 @@ struct OpenDataListenReturnValue {
             : success(success), port(port) {}
 };
 
-class NetworkSession {
+class NetworkManager {
 public:
     int getCmdFd() {
         return this->cmdFd;
@@ -34,7 +37,7 @@ public:
 
     void setCmdFd(int fd) {
         if (fd < 0) {
-            bug("NetworkSession::setCmdFD: the param is illegal");
+            bug("NetworkManager::setCmdFD: the param is illegal");
         }
         this->cmdFd = fd;
     }
@@ -48,7 +51,7 @@ public:
 
     bool acceptDataConnect() {
         if (this->dataListenFd < 0) {
-            bug("NetworkSession::acceptDataConnect: accept connection while this->dataListenFd<0");
+            bug("NetworkManager::acceptDataConnect: accept connection while this->dataListenFd<0");
         }
         this->dataFd = acceptConnect(this->dataListenFd);
         assert(this->dataFd < 0 || this->dataFd >= 3);
@@ -63,7 +66,7 @@ public:
 
     bool closeDataListen() {
         if (this->dataListenFd < 0) {
-            bug("NetworkSession::closeDataListen: closeDataListen while this->dataListenFd<0");
+            return false;
         }
         bool ret = closeFileDescriptor(this->dataListenFd);
         this->dataListenFd = -1;
@@ -72,16 +75,19 @@ public:
 
     bool closeDataConnect() {
         if (this->dataFd < 0) {
-            bug("NetworkSession::closeDataConnect: closeDataListen while this->dataFd<0");
+            return false;
         }
         bool ret = closeFileDescriptor(this->dataFd);
         this->dataFd = -1;
         return ret;
     }
 
+    /**
+     * @param buf contain the result, end with \0
+     */
     RecvCmdReturnValue recvCmd(char *buf, size_t bufSize) {
         if (this->cmdFd < 0) {
-            bug("NetworkSession::recvCmd: recvCmd while this->cmdFd<0");
+            bug("NetworkManager::recvCmd: recvCmd while this->cmdFd<0");
         }
         ReadLineReturnValue ret = readLine(this->cmdFd, buf, bufSize, bufForCmdFd);
         if (!ret.success) {
@@ -94,21 +100,21 @@ public:
 
     bool sendToCmdFd(const char *msg, size_t len) {
         if (this->cmdFd < 0) {
-            bug("NetworkSession::sendToCmdFd: sendToCmdFd while this->cmdFd<0");
+            bug("NetworkManager::sendToCmdFd: sendToCmdFd while this->cmdFd<0");
         }
         return writeAllData(this->cmdFd, msg, len);
     }
 
     bool sendToDataFd(const byte *data, size_t len) {
         if (this->dataFd < 0) {
-            bug("NetworkSession::sendToDataFd: sendToDataFd while this->dataFd<0");
+            bug("NetworkManager::sendToDataFd: sendToDataFd while this->dataFd<0");
         }
         return writeAllData(this->dataFd, data, len);
     }
 
     bool sendLocalFile(const char *const path) {
         if (this->dataFd < 0) {
-            bug("NetworkSession::sendLocalFile: sendLocalFile while this->dataFd<0");
+            bug("NetworkManager::sendLocalFile: sendLocalFile while this->dataFd<0");
         }
         int localFileFd = openWrapV1(path, O_RDONLY);
         if (localFileFd == -1) {
@@ -136,7 +142,7 @@ public:
 
     bool recvRemoteAndWriteLocalFile(const char *const path) {
         if (this->dataFd < 0) {
-            bug("NetworkSession::recvRemoteAndWriteLocalFile recvRemoteAndWriteLocalFile  while this->dataFd<0");
+            bug("NetworkManager::recvRemoteAndWriteLocalFile recvRemoteAndWriteLocalFile  while this->dataFd<0");
         }
         int localFileFd = openWrapV2(path, O_CREAT | O_WRONLY,
                                      S_IWUSR | S_IRUSR | S_IWOTH
@@ -161,7 +167,7 @@ public:
         }
     }
 
-    ~NetworkSession() {
+    ~NetworkManager() {
         if (this->dataListenFd >= 3) {
             this->closeDataListen();
         }
@@ -178,10 +184,12 @@ private:
      * so should close it.
      *
      * The dataFd and dataListenFd should be -1 is it is not valid.
-     * This means when close, should set them to -1.
+     * This means when endOfSession, should set them to -1.
      */
     int cmdFd = -1;
     int dataFd = -1;
     int dataListenFd = -1;
     ReadBuf bufForCmdFd{};
 };
+
+#endif

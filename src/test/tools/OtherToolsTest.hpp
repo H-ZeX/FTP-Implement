@@ -25,9 +25,9 @@ public:
 
     static void testFS() {
         assert(FileSystem::mkDir("/tmp/1ttt"));
-        assert(FileSystem::delFileAndDir("/tmp/1ttt"));
+        assert(FileSystem::delFileOrDir("/tmp/1ttt"));
         assert(FileSystem::mkDir("/tmp/nDir"));
-        assert(FileSystem::delFileAndDir("/tmp/nDir"));
+        assert(FileSystem::delFileOrDir("/tmp/nDir"));
         assert(FileSystem::isExistsAndReadable("/tmp/2ttt"));
         assert(!FileSystem::isPathAbsolute("."));
         PBB t = FileSystem::isDir("/tmp");

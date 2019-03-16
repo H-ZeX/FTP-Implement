@@ -10,6 +10,10 @@
 
 using std::string;
 
+/**
+ * @note
+ * Will write the UserInfo's isValid, uid, gid, username, homeDir
+ */
 UserInfo login(const char *username,
                const char *pwd,
                const char *ip = "",

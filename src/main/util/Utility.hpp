@@ -325,6 +325,25 @@ int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
 }
 
 /**
+ * @return return false if error occur.
+ */
+bool readAllData(vector<char> &result, int fd, ReadBuf &buf) {
+    char readBuf[2048];
+    const int readBufSize = sizeof(readBuf) - 10;
+    int hadRead = 0;
+    while (true) {
+        hadRead = readWithBuf(fd, readBuf, readBufSize, buf);
+        if (hadRead <= 0) {
+            break;
+        }
+        for (int i = 0; i < hadRead; i++) {
+            result.push_back(readBuf[i]);
+        }
+    };
+    return hadRead == 0;
+}
+
+/**
  * Thread-Safety: Unknown(because the write function's Thread-Safety is Unknown
  */
 bool writeAllData(int fd, const byte *buf, size_t size) {
@@ -381,7 +400,6 @@ bool closeFileDescriptor(int fd) {
     } while (errno == EINTR);
     assert(false);
 }
-
 
 /**
  * Thread-Safety: Unknown(because of `fcntl` function's Thread-Safety is Unknown)

@@ -1,12 +1,3 @@
-/**********************************************************************************
-*   Copyright © 2018 H-ZeX. All Rights Reserved.
-*
-*   File Name:    session.h
-*   Author:       H-ZeX
-*   Create Time:  2018-08-17-20:18:00
-*   Describe:
-*
-**********************************************************************************/
 #ifndef __SESSION_H__
 #define __SESSION_H__
 
@@ -17,15 +8,23 @@
 #include "src/main/util/Utility.hpp"
 
 #include "FTP.hpp"
-#include "NetworkSession.hpp"
+#include "NetworkManager.hpp"
 #include "Login.hpp"
-#include "Session.cpp"
+#include "Session.hpp"
 
 #include <map>
 #include <string>
 
 using std::string;
 using std::map;
+
+
+class EndOfSessionException : public exception {
+    const char *what() const noexcept override {
+        return "EndOfSessionException";
+    }
+};
+
 
 /**
  * @warning
@@ -38,365 +37,337 @@ using std::map;
 class Session {
 public:
     /**
-     * @param endOfCmdCallback is callback when end of a cmd.
-     * @param endOfSessionCallback is callback when end of this session.
+     * @param endOfCmdCallback callback when end of a cmd.
+     * @param endOfSessionCallback callback when end of this session.
+     * <br/>
+     * When end of session, will NOT call end of cmd callback.
      */
     explicit Session(int cmdFd,
                      void (*endOfCmdCallback)(void *),
-                     void (*endOfSessionCallback)(void *)) {
+                     void (*endOfSessionCallback)(void *),
+                     string thisMachineIp)
+            : selfIp(thisMachineIp) {
+        assert(cmdFd >= 3);
         this->callbackOnCmdEnd = endOfCmdCallback;
         this->callbackOnSessionEnd = endOfSessionCallback;
-        this->net.setCmdFd(cmdFd);
+        this->networkManager.setCmdFd(cmdFd);
     }
 
-
     void handle() {
-        // usleep(10000);
-        /*
-        const char *msg;
-        if (userInfo.isValid == true && setThreadUidAndGid(userInfo.uid, userInfo.gid) == false) {
-            msg = "400 Please loggin" END_OF_LINE;
-            this->net.sendToCmdFd(msg, strlen(msg));
-            this->close();
-            return;
-        }
-        */
-        fprintf(stderr, "Hander begin recvCmd\n");
-        PPI p = this->net.recvCmd(this->cmdBuf, CMD_MAX_LEN);
-        fprintf(stderr, "after recvcmd %d %d %d\n", p.first.first, p.first.second, p.second);
-
+        RecvCmdReturnValue ret = networkManager.recvCmd(this->cmdBuf,
+                                                        CMD_MAX_LEN);
         try {
-            // if no EOL, should check whether EOF, if EOF, should close the session
+            // if no EOL, should check whether EOF,
+            // if EOF, should endOfSession the session
             // or will receive broken pipe signal
-            if (!p.first.first) {
-                if (p.first.second) {
-                    this->close();
+            if (!ret.success) {
+                if (ret.isEOF) {
+                    this->endOfSession();
                     return;
                 } else {
                     invalid();
-                    this->endHandler();
+                    this->endOfCmdHandler();
                     return;
                 }
             }
-            PSI t = parseCmd(this->cmdBuf);
-            fprintf(stderr, "parse cmd %s\n", t.first.c_str());
-            auto k = handlerMap.find(t.first);
-            if (k == handlerMap.end()) {
+            PSI cmd = parseCmd(this->cmdBuf);
+            assert(cmd.second < CMD_MAX_LEN);
+            myLog(("recvCmd: " + string(cmdBuf)).c_str());
+            auto handler = handlerMap.find(cmd.first);
+            if (handler == handlerMap.end()) {
                 invalid();
-            } else if (!userInfo.isValid && (t.first != "USER" && t.first != "PASS")) {
-                haventLogin();
+            } else if (!userInfo.isValid
+                       && cmd.first != "USER"
+                       && cmd.first != "PASS") {
+                hasNotLogin();
             } else {
-                (this->*(k->second))(t.second);
+                (this->*(handler->second))(cmd.second);
             }
-            if (p.first.second) {
-                this->close();
+            if (ret.isEOF) {
+                this->endOfSession();
                 return;
             } else {
-                endHandler();
+                endOfCmdHandler();
             }
         } catch (exception &e) {
-            warning(e.what());
-            this->callbackOnSessionEnd(this);
+            if (this->callbackOnSessionEnd != nullptr) {
+                this->callbackOnSessionEnd(this);
+            }
             return;
         }
     }
 
     int getCmdFd() {
-        return this->net.getCmdFd();
+        return this->networkManager.getCmdFd();
     }
 
 private:
+
     void cdup(int paramIndex) {
         (void) paramIndex;
         size_t len = currentPath.length();
-        size_t t;
+        assert(len > 0);
+        assert(currentPath[0] == '/' && currentPath[len - 1] == '/');
+        // The first and last index of currentPath is `/`.
+        // So if len == 1, then it is at root dir.
         if (len > 1) {
-            if (*currentPath.rbegin() != '/') {
-                bug("Session::cdup: currentPath should end with /");
-            }
-            t = currentPath.rfind('/', len - 2);
-            if (t == string::npos) {
-                bug("Session::cdup: The currentPath must have at least one '/'");
-            }
-            for (int i = t + 1; i < len; i++) {
-                currentPath.pop_back();
-            }
+            int index = static_cast<int>(currentPath.rfind('/', len - 2));
+            assert(index != string::npos);
+            currentPath = currentPath.substr(0, (index + 1));
+            assert(currentPath[0] == '/' && currentPath[len - 1] == '/');
         }
         const char *msg = "250 Directory successfully changed" END_OF_LINE;
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void cwd(int paramIndex) {
-        string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-        PBB d = FileSystem::isDir(path.c_str());
-        const char *msg;
-        if (d.first && d.second) {
+        string path = string(this->cmdBuf).substr(paramIndex);
+        path = makeAbsolutePath(path);
+        PBB isDir = FileSystem::isDir(path.c_str());
+        const char *msg = nullptr;
+        if (isDir.first && isDir.second) {
             currentPath = path + '/';
-            warningWithErrno(("Session::cwd currentPath: " + currentPath).c_str());
             msg = "250 Directory successfully changed" END_OF_LINE;
         } else {
             msg = "550 Failed to change directory." END_OF_LINE;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void dele(int paramIndex) {
-        string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-        PBB t = FileSystem::isDir(path.c_str());
-        const char *msg;
-        if (!t.first || t.second) {
+        string path = string(this->cmdBuf).substr(paramIndex);
+        path = makeAbsolutePath(path);
+        PBB isDir = FileSystem::isDir(path.c_str());
+        const char *msg = nullptr;
+        if (!isDir.first || isDir.second) {
             msg = "550 Delete operation failed." END_OF_LINE;
         } else {
-            if (!FileSystem::delFile(path.c_str())) {
+            if (!FileSystem::delFileOrDir(path.c_str())) {
                 msg = "550 Delete operation failed." END_OF_LINE;
             } else {
                 msg = "250 Delete operation successful." END_OF_LINE;
             }
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void help(int paramIndex) {
         (void) paramIndex;
-        const char *msg = "214-CDUP, CWD, DELE, HELP, LIST, MKD, MODE, NLST, NOOP, PASS, PASV, PORT,\n "
-                          "PWD, QUIT, REST, RETR, RMD, RNFR, RNTO, STAT, STOR, STRU, SYST, TYPE, "
+        const char *msg = "214-CDUP, CWD, DELE, HELP, LIST, MKD, "
+                          "MODE, NLST, NOOP, PASS, PASV, PORT,\n "
+                          "PWD, QUIT, REST, RETR, RMD, RNFR, RNTO, "
+                          "STAT, STOR, STRU, SYST, TYPE, "
                           "USER\n214 Help Ok" END_OF_LINE;
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void list(int paramIndex) {
-        const char *msg;
+        const char *msg = nullptr;
         bool success = false;
         if ((lastCmd != "PORT" && lastCmd != "PASV") || !isLastCmdSuccess) {
             msg = "425 Use PORT or PASV first." END_OF_LINE;
-        } else if (lastCmd == "PASV" && !this->net.acceptDataConnect()) {
+        } else if (lastCmd == "PASV" && !this->networkManager.acceptDataConnect()) {
             msg = "425 Failed to establish connection." END_OF_LINE;
         } else {
             msg = "150 Here comes the directory listing." END_OF_LINE;
             success = true;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
+        if (!this->networkManager.sendToCmdFd(msg, strlen(msg))) {
+            this->endOfSession();
             return;
         }
         if (!success) {
-            break;
-        }
-        string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-        string res;
-        if (FileSystem::ls(path.c_str(), res)) {
-            if (!this->net.sendToDataFd(res.c_str(), res.length())) {
-                msg = "425 Failed to establish connection." END_OF_LINE;
-            } else {
-                msg = "226 Directory send OK." END_OF_LINE;
-            }
-        } else {
-            msg = "400 LIST Failed" END_OF_LINE;
-        }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
+            closeDataConnectionOrListen();
+            lastCmd = "";
+            isLastCmdSuccess = false;
             return;
+        } else {
+            string path = string(this->cmdBuf).substr(paramIndex);
+            path = makeAbsolutePath(path);
+            string result;
+            if (FileSystem::ls(path.c_str(), result)) {
+                if (!this->networkManager.sendToDataFd(result.c_str(), result.length())) {
+                    msg = "425 Failed to establish connection." END_OF_LINE;
+                } else {
+                    msg = "226 Directory send OK." END_OF_LINE;
+                }
+            } else {
+                msg = "400 LIST Failed" END_OF_LINE;
+            }
+            closeDataConnectionOrListen();
+            if (!this->networkManager.sendToCmdFd(msg, strlen(msg))) {
+                this->endOfSession();
+                return;
+            }
+            lastCmd = "";
+            isLastCmdSuccess = false;
         }
-        lastCmd = "";
-        isLastCmdSuccess = false;
-        this->net.closeDataListen();
-        this->net.closeDataConnect();
     }
 
     void mkd(int paramIndex) {
         string msg;
-        string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
+        string path = string(this->cmdBuf).substr(paramIndex);
+        path = makeAbsolutePath(path);
         if (!FileSystem::mkDir(path.c_str())) {
             msg = "550 Create directory operation failed." END_OF_LINE;
         } else {
             msg = ("257 \"" + path + "\" created" + END_OF_LINE);
         }
-        if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg.c_str());
     }
 
     void mode(int paramIndex) {
-        const char *msg;
-        if (this->cmdBuf[paramIndex] != 'S' && this->cmdBuf[paramIndex] != 's') {
+        const char *msg = nullptr;
+        const char c = this->cmdBuf[paramIndex];
+        if (c != 'S' && c != 's') {
             msg = "504 Bad MODE command." END_OF_LINE;
         } else {
             msg = "200 Mode set to S." END_OF_LINE;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void pass(int paramIndex) {
-        const char *msg;
+        const char *msg = nullptr;
         if (userInfo.isValid) {
             msg = "230 Already logged in." END_OF_LINE;
-            break;
-        }
-        string pass = string(this->cmdBuf).substr(paramIndex);
-        userInfo = preLogin(userInfo.username.c_str(), pass.c_str());
-        if (!userInfo.isValid) {
-            msg = "530 Login incorrect." END_OF_LINE;
-            usleep(LOGIN_INCORRECT_DELAY_SEC * 1000000);
         } else {
-            msg = "230 Login successful." END_OF_LINE;
-            init();
+            string pass = string(this->cmdBuf).substr(paramIndex);
+            UserInfo tmp = login(userInfo.username.c_str(), pass.c_str());
+            if (!tmp.isValid) {
+                msg = "530 Login incorrect." END_OF_LINE;
+                userInfo.isValid = false;
+                usleep(LOGIN_INCORRECT_DELAY_SEC * 1000000);
+            } else {
+                msg = "230 Login successful." END_OF_LINE;
+                userInfo.isValid = true;
+                userInfo.uid = tmp.uid;
+                userInfo.gid = tmp.gid;
+                userInfo.homeDir = tmp.homeDir;
+                this->currentPath = userInfo.homeDir + "/";
+            }
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void pasv(int paramIndex) {
         (void) paramIndex;
-        if (lastCmd == "PORT" || lastCmd == "PASV") {
-            this->net.closeDataConnect();
-            this->net.closeDataListen();
-        }
-        PBI t = this->net.openDataListen();
+
+        closeDataConnectionOrListen();
+        this->lastCmd = "";
+        this->isLastCmdSuccess = false;
+
+        OpenDataListenReturnValue ret = this->networkManager.openDataListen();
         string msg;
-        if (!t.first || selfIp.length() == 0) {
+        assert(selfIp.length() > 0);
+        if (!ret.success) {
             msg = "400 Failed to Enter Passive Mode" END_OF_LINE;
-            this->net.closeDataListen();
+            this->networkManager.closeDataListen();
         } else {
-            string ip = selfIp;
-            formatPasvReply(ip, t.second);
-            msg = ("227 Entering Passive Mode (" + ip + ")" + END_OF_LINE);
+            string addr = formatPasvReply(selfIp, ret.port);
+            msg = ("227 Entering Passive Mode (" + addr + ")" + END_OF_LINE);
         }
-        if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
-            this->close();
+        if (!this->networkManager.sendToCmdFd(msg.c_str(), msg.length())) {
+            this->endOfSession();
             return;
+        } else if (ret.success) {
+            this->isLastCmdSuccess = true;
+            this->lastCmd = "PASV";
         }
-        fprintf(stderr, "pasv: Send to cmd fd END\n");
-        this->isLastCmdSuccess = !(!t.first || selfIp.length() == 0);
-        this->lastCmd = "PASV";
     }
 
     void port(int paramIndex) {
-        if (lastCmd == "PORT" || lastCmd == "PASV") {
-            this->net.closeDataConnect();
-            this->net.closeDataListen();
-        }
-        int port;
+        closeDataConnectionOrListen();
+        this->lastCmd = "";
+        this->isLastCmdSuccess = false;
+
+        int port = 0;
         string ip;
-        const char *msg;
-        if (!parsePortCmd(string(this->cmdBuf).substr(paramIndex), ip, port)) {
+        const char *msg = nullptr;
+        string param = string(this->cmdBuf).substr(paramIndex);
+        if (!parsePortCmd(param, ip, port)) {
             msg = "500 Illegal PORT command." END_OF_LINE;
-            this->isLastCmdSuccess = false;
+        } else if (!this->networkManager.openDataConnection(ip.c_str(), to_string(port).c_str())) {
+            msg = "400 failed to establish connect." END_OF_LINE;
         } else {
-            if (!this->net.openDataConnection(ip.c_str(), std::to_string(port).c_str())) {
-                msg = "400 faild to establish connect." END_OF_LINE;
-                this->isLastCmdSuccess = false;
-            } else {
-                msg = "200 PORT command successful. Consider using PASV." END_OF_LINE;
-                this->isLastCmdSuccess = true;
-            }
+            msg = "200 PORT command successful. Consider using PASV." END_OF_LINE;
+            this->isLastCmdSuccess = true;
+            this->lastCmd = "PORT";
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
-        this->lastCmd = "PORT";
+        sendToCmd(msg);
     }
 
     void pwd(int paramIndex) {
         (void) paramIndex;
         string msg = ("257 \"" + currentPath + "\" is the current directory" + END_OF_LINE);
-        if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg.c_str());
     }
 
     void quit(int paramIndex) {
         (void) paramIndex;
         const char *msg = "221 Goodbye" END_OF_LINE;
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
-        this->close();
+        sendToCmd(msg);
+        this->endOfSession();
     }
 
     void rest(int paramIndex) {
         (void) paramIndex;
         const char *msg = "350 Restart position accepted (0)." END_OF_LINE;
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void retr(int paramIndex) {
         string msg;
-        bool success = false;
         string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
+        bool success = false;
         if ((lastCmd != "PASV" && lastCmd != "PORT") || !isLastCmdSuccess) {
             msg = "425 Use PORT or PASV first." END_OF_LINE;
         } else {
             PBB isd = FileSystem::isDir(path.c_str());
-            fprintf(stderr, "retr: %s %d %d %d", path.c_str(), isd.first, isd.second,
-                    FileSystem::isExistsAndReadable(path.c_str()));
             if (!isd.first || isd.second ||
-                !(FileSystem::isExistsAndReadable(path.c_str()))) {
+                !FileSystem::isExistsAndReadable(path.c_str())) {
                 msg = "550 Failed to open file." END_OF_LINE;
             } else {
                 success = true;
                 msg = ("150 Opening data connection for " + path + END_OF_LINE);
             }
         }
-        if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
-            this->close();
+        if (!this->networkManager.sendToCmdFd(msg.c_str(), msg.length())) {
+            this->endOfSession();
             return;
         }
         if (!success) {
-            break;
-        }
-        if (lastCmd == "PASV" && !this->net.acceptDataConnect()) {
-            msg = "425 Failed to establish connection." END_OF_LINE;
-        } else if (this->net.sendFile(path.c_str())) {
-            msg = "226 Transfer complete." END_OF_LINE;
-        } else {
-            msg = "425 Failed to establish connection." END_OF_LINE;
-        }
-        if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
-            this->close();
+            closeDataConnectionOrListen();
+            lastCmd = "";
+            isLastCmdSuccess = false;
             return;
+        } else {
+            if (lastCmd == "PASV" && !this->networkManager.acceptDataConnect()) {
+                msg = "425 Failed to establish connection." END_OF_LINE;
+            } else if (this->networkManager.sendLocalFile(path.c_str())) {
+                msg = "226 Transfer complete." END_OF_LINE;
+            } else {
+                msg = "425 Failed to establish connection." END_OF_LINE;
+            }
+            closeDataConnectionOrListen();
+            if (!this->networkManager.sendToCmdFd(msg.c_str(), msg.length())) {
+                this->endOfSession();
+                return;
+            }
+            lastCmd = "";
+            isLastCmdSuccess = false;
         }
-        lastCmd = "";
-        isLastCmdSuccess = false;
-        this->net.closeDataListen();
-        this->net.closeDataConnect();
     }
 
     void rmd(int paramIndex) {
         string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-        const char *msg;
-        if (!FileSystem::del(path.c_str())) {
+        const char *msg = nullptr;
+        if (!FileSystem::delFileOrDir(path.c_str())) {
             msg = "550 Remove directory operation failed." END_OF_LINE;
         } else {
             msg = "250 Remove directory operation successful." END_OF_LINE;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void stat(int paramIndex) {
@@ -416,86 +387,76 @@ private:
                    END_OF_LINE + "     " + PRODUCTION_NAME + " " + PRODUCTION_VERSION + END_OF_LINE +
                    "211 End of status" + END_OF_LINE);
         }
-        if (!this->net.sendToCmdFd(msg.c_str(), msg.length())) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg.c_str());
     }
 
     void stor(int paramIndex) {
-        const char *msg;
+        const char *msg = nullptr;
         bool success = false;
         if ((lastCmd != "PORT" && lastCmd != "PASV") || !isLastCmdSuccess) {
             msg = "425 Use PORT or PASV first." END_OF_LINE;
-        } else if (lastCmd == "PASV" && !this->net.acceptDataConnect()) {
+        } else if (lastCmd == "PASV" && !this->networkManager.acceptDataConnect()) {
             msg = "425 failed to establish connection" END_OF_LINE;
         } else {
             msg = "150 Ok to send data." END_OF_LINE;
             success = true;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
+        if (!this->networkManager.sendToCmdFd(msg, strlen(msg))) {
+            this->endOfSession();
             return;
         }
         if (!success) {
-            break;
-        }
-        string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
-        if (!this->net.recvAndWriteFile(path.c_str())) {
-            msg = "400 STOR Failed" END_OF_LINE;
+            closeDataConnectionOrListen();
+            lastCmd = "";
+            isLastCmdSuccess = false;
         } else {
-            msg = "226 Transfer complete" END_OF_LINE;
+            string path = makeAbsolutePath(string(this->cmdBuf).substr(paramIndex));
+            if (!this->networkManager.recvRemoteAndWriteLocalFile(path.c_str())) {
+                msg = "400 STOR Failed" END_OF_LINE;
+            } else {
+                msg = "226 Transfer complete" END_OF_LINE;
+            }
+            closeDataConnectionOrListen();
+            if (!this->networkManager.sendToCmdFd(msg, strlen(msg))) {
+                this->endOfSession();
+                return;
+            }
+            lastCmd = "";
+            isLastCmdSuccess = false;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
-        lastCmd = "";
-        isLastCmdSuccess = false;
-        this->net.closeDataListen();
-        this->net.closeDataConnect();
     }
 
     void stru(int paramIndex) {
-        const char *msg;
-        if (this->cmdBuf[paramIndex] != 'F' && this->cmdBuf[paramIndex] != 'f') {
+        const char *msg = nullptr;
+        const char c = this->cmdBuf[paramIndex];
+        if (c != 'F' && c != 'f') {
             msg = "504 Bad STRU command." END_OF_LINE;
         } else {
             msg = "200 Structure set to F." END_OF_LINE;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void syst(int paramIndex) {
         (void) paramIndex;
         const char *msg = "215 UNIX" END_OF_LINE;
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void type(int paramIndex) {
         const char *msg = "504 Bad TYPE command." END_OF_LINE;
-        if (this->cmdBuf[paramIndex] == 'A' || this->cmdBuf[paramIndex] == 'a') {
+        char c = this->cmdBuf[paramIndex];
+        c = (c <= 'z' && c >= 'a') ? c : ('a' + (c - 'A'));
+        if (c == 'a') {
             msg = "200 Switching to ASCII mode." END_OF_LINE;
-        } else if (this->cmdBuf[paramIndex] == 'I' || this->cmdBuf[paramIndex] == 'i') {
-            msg = "200 Switching to Binary mode." END_OF_LINE;
-        } else if ((this->cmdBuf[paramIndex] == 'L' || this->cmdBuf[paramIndex] == 'l') &&
-                   this->cmdBuf[paramIndex + 2] == '8') {
+        } else if (c == 'i' || c == 'l') {
             msg = "200 Switching to Binary mode." END_OF_LINE;
         }
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void user(int paramIndex) {
-        const char *msg;
+        const char *msg = nullptr;
         string username = string(this->cmdBuf).substr(paramIndex);
         if (!userInfo.isValid) {
             msg = "331 Please specify the password" END_OF_LINE;
@@ -505,35 +466,24 @@ private:
         } else {
             msg = "530 Can't change to another user." END_OF_LINE;
         }
-        fprintf(stderr, "user cmd %s %s\n", username.c_str(), userInfo.username.c_str());
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
     void invalid() {
         const char *msg = "500 Unknown Command" END_OF_LINE;
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
+        sendToCmd(msg);
     }
 
-    void haventLogin() {
+    void hasNotLogin() {
         const char *msg = "530 Please login with USER and PASS" END_OF_LINE;
-        if (!this->net.sendToCmdFd(msg, strlen(msg))) {
-            this->close();
-            return;
-        }
-    }
-
-    void init() {
-        this->currentPath = userInfo.homeDir;
-        this->currentPath += "/";
+        sendToCmd(msg);
     }
 
 private:
+
+    /**
+     * @return (cmd, index of the end of cmd)
+     */
     PSI parseCmd(const char *param) {
         int i = 0;
         while (param[i] && isspace(param[i])) {
@@ -553,7 +503,6 @@ private:
         return PSI(cmd, i);
     }
 
-private:
     bool parsePortCmd(string param, string &ip, int &port) {
         ip.clear(), port = 0;
         int cnt = 0, i = 0;
@@ -575,19 +524,19 @@ private:
             return false;
         }
         int tmp[2] = {0, 0};
-        int tmpi = 0;
-        for (; i < param.length() && tmpi < 2; i++) {
+        int tmpInd = 0;
+        for (; i < param.length() && tmpInd < 2; i++) {
             if (isdigit(param[i])) {
-                tmp[tmpi] = tmp[tmpi] * 10 + param[i] - '0';
+                tmp[tmpInd] = tmp[tmpInd] * 10 + param[i] - '0';
             } else if (param[i] == ',') {
-                tmpi++;
+                tmpInd++;
             } else if (param[i] == ' ') {
                 continue;
             } else {
                 return false;
             }
         }
-        if (tmpi > 1) {
+        if (tmpInd > 1) {
             return false;
         }
         port = tmp[0] * 256 + tmp[1];
@@ -602,37 +551,49 @@ private:
         }
     }
 
-    /**
-     * the result store in the ip string
-     */
-    void formatPasvReply(std::string &ip, int port) {
-        if (ip.length() == 0) {
-            bug("Session::formatPasvReply pass invalid ip to here");
-        }
-        for (char &i : ip) {
-            if (i == '.') {
-                i = ',';
+    string formatPasvReply(string ip, int port) {
+        assert(ip.length() > 0);
+        for (int j = 0; j < ip.length(); j++) {
+            if (ip[j] == '.') {
+                ip[j] = ',';
             }
         }
-        ip = ip + "," + to_string(port / 256) + "," + to_string(port % 256);
+        string result = ip + ","
+                        + to_string(port / 256) + ","
+                        + to_string(port % 256);
+        return result;
     }
 
-    void endHandler() {
-        this->callbackOnCmdEnd(this);
+    void endOfCmdHandler() {
+        if (this->callbackOnCmdEnd != nullptr) {
+            this->callbackOnCmdEnd(this);
+        }
     }
-
 
     /*
      * If called callbackOnSessionEnd, this session should NOT use anymore.
      * It is hard to use other ways except longjmp or exception to leave this session.
-     * If use longjmp there may be some class in the stack which need to run destructors,
+     * There are some class in the stack which need to run destructors,
      * such as string. so longjmp will make the memory leakage.
-     * The c++'s throw exception is similar to longjmp but will call the destructors in the stack.
-     * So I use throw in the close func, and catch it in the suitable location.
+     * The c++'s throw exception is similar to longjmp
+     * but will call the destructors in the stack.
+     * So I use throw in the endOfSession func, and catch it in the suitable location.
      * This may seam a little special, but it is ok
      */
-    void close() {
+    void endOfSession() {
         throw EndOfSessionException();
+    }
+
+    void sendToCmd(const char *const msg) {
+        if (!this->networkManager.sendToCmdFd(msg, strlen(msg))) {
+            this->endOfSession();
+            return;
+        }
+    }
+
+    void closeDataConnectionOrListen() {
+        this->networkManager.closeDataListen();
+        this->networkManager.closeDataConnect();
     }
 
 private:
@@ -641,22 +602,23 @@ private:
      * the list, retr, stor will check and reset these two var.
      * For any other cmd, these two var should NOT be used.
      */
-    string lastCmd;
+    string lastCmd{};
     bool isLastCmdSuccess = false;
-public:
+
+    static const size_t CMD_MAX_LEN = 1024;
     char cmdBuf[CMD_MAX_LEN]{};
-private:
-    const string selfIp;
-    // absolute path, MUST end with '/'
-    string currentPath;
-    UserInfo userInfo;
-    NetworkSession net;
 
-    void (*callbackOnSessionEnd)(void *);
+    // absolute path, MUST begin and end with '/'
+    UserInfo userInfo{};
 
-    void (*callbackOnCmdEnd)(void *);
+    void (*callbackOnCmdEnd)(void *){};
 
-private:
+    void (*callbackOnSessionEnd)(void *){};
+
+    NetworkManager networkManager{};
+    const string selfIp{};
+    string currentPath{};
+
     const std::map<string, void (Session::*)(int)> handlerMap{
             {"CDUP", &Session::cdup},
             {"CWD",  &Session::cwd},
@@ -672,13 +634,13 @@ private:
             {"QUIT", &Session::quit},
             {"REST", &Session::rest},
             {"RETR", &Session::retr},
-            {"RMD",  &rmd},
-            {"STAT", &stat},
-            {"STOR", &stor},
-            {"STRU", &stru},
-            {"SYST", &syst},
-            {"TYPE", &type},
-            {"USER", &user}};
+            {"RMD",  &Session::rmd},
+            {"STAT", &Session::stat},
+            {"STOR", &Session::stor},
+            {"STRU", &Session::stru},
+            {"SYST", &Session::syst},
+            {"TYPE", &Session::type},
+            {"USER", &Session::user}};
 };
 
 #endif

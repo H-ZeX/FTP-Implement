@@ -7,5 +7,8 @@
 int main() {
     // CoreTest::testLogin();
     CoreTest::testNetworkSession();
+    // CoreTest::testParsePortCmd();
+    CoreTest::testSession();
+    // CoreTest::testSpecialConnect();
 }
 

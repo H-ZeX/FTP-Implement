@@ -11,12 +11,11 @@ include_directories(.)
 set(SRC
         src/main/util/Def.hpp
         src/main/tools/FileSystem.hpp
-        src/main/core/FTP.cpp
         src/main/core/FTP.hpp
         src/main/tools/ListFiles.hpp
         src/main/main.cpp
         src/main/util/NetUtility.hpp
-        src/main/core/NetworkSession.hpp
+        src/main/core/NetworkManager.hpp
         src/main/core/Login.hpp
         src/main/core/Session.hpp
         src/main/tools/ThreadPool.hpp

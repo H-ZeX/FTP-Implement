@@ -93,6 +93,20 @@ public:
         assert(closeFileDescriptor(fd[1]));
     }
 
+    static void testReadAllAndWriteAll() {
+        vector<char> result;
+        ReadBuf cache{};
+        int fd = openWrapV1("/tmp/udaa", O_RDONLY);
+        assert(fd >= 3);
+        assert(readAllData(result, fd, cache));
+        int fd2 = openWrapV2("/tmp/udaa_copy", O_WRONLY | O_CREAT, S_IRWXO | S_IRWXU | S_IRWXG);
+        assert(fd2 >= 3);
+        cout << result.size() << endl;
+        writeAllData(fd2, result.data(), result.size());
+        closeFileDescriptor(fd);
+        closeFileDescriptor(fd2);
+    }
+
     // TODO mutexInit's error situation had NOT tested
     static void testMutex(const int testCnt = 1024) {
         const int maxMutexCnt = 1024;
