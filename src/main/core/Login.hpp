@@ -18,8 +18,14 @@ UserInfo login(const char *username,
                const char *pwd,
                const char *ip = "",
                const char *port = "") {
-    spwd buf{}, *bufPtr;
-    int bufSize = ENCRYPTED_KEY_MAX_LEN;
+    /*
+     * according to manual of crypt's glibc note, The size of this string is fixed:
+     * MD5:22 characters, SHA-256: 43 characters, SHA-512: 86 characters
+     * the $6$salt$encrypted is an SHA-512 encoded one, "salt" stands for the up to 16  characters
+     */
+    const size_t encryptKeyMaxLen = 256;
+    spwd buf{}, *bufPtr = nullptr;
+    size_t bufSize = encryptKeyMaxLen;
     char *spwdBuf = new char[bufSize];
     /*
      * The getspnam_r's manual is not clear,
@@ -28,7 +34,7 @@ UserInfo login(const char *username,
      */
     int ret;
     errno = 0;
-    while ((ret = getspnam_r(username, &buf, spwdBuf, ENCRYPTED_KEY_MAX_LEN, &bufPtr)) != 0) {
+    while ((ret = getspnam_r(username, &buf, spwdBuf, bufSize - 10, &bufPtr)) != 0) {
         ret = ret == -1 ? errno : ret;
         if (ret == EACCES) {
             bugWithErrno("login getspnam_r failed", ret, true);
@@ -58,7 +64,7 @@ UserInfo login(const char *username,
         }
     } else {
         // TODO this strncmp's char number limit is too large, which may have buffer overflow bug
-        if (strncmp(sp, bufPtr->sp_pwdp, ENCRYPTED_KEY_MAX_LEN) == 0) {
+        if (strncmp(sp, bufPtr->sp_pwdp, encryptKeyMaxLen) == 0) {
             myLog((string("From ") + ip + ": " + string(username) + " login success").c_str());
             UserInfo info = getUidGidHomeDir(username);
             info.cmdIp = ip;

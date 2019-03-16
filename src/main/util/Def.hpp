@@ -21,12 +21,6 @@ using std::exception;
 #define DEFAULT_THREAD_CNT 100
 #define MAX_TASK_CNT 10240
 #define LOGIN_INCORRECT_DELAY_SEC 3
-/**
- * according to manual of crypt's glibc note, The size of this string is fixed:
- * MD5:22 characters, SHA-256: 43 characters, SHA-512: 86 characters
- * the $6$salt$encrypted is an SHA-512 encoded one, "salt" stands for the up to 16  characters
- */
-#define ENCRYPTED_KEY_MAX_LEN 256
 
 /**
  * exit code

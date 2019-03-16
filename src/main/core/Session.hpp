@@ -114,7 +114,7 @@ private:
             int index = static_cast<int>(currentPath.rfind('/', len - 2));
             assert(index != string::npos);
             currentPath = currentPath.substr(0, (index + 1));
-            assert(currentPath[0] == '/' && currentPath[len - 1] == '/');
+            assert(currentPath[0] == '/' && *currentPath.rbegin() == '/');
         }
         const char *msg = "250 Directory successfully changed" END_OF_LINE;
         sendToCmd(msg);
@@ -180,7 +180,6 @@ private:
             closeDataConnectionOrListen();
             lastCmd = "";
             isLastCmdSuccess = false;
-            return;
         } else {
             string path = string(this->cmdBuf).substr(paramIndex);
             path = makeAbsolutePath(path);
@@ -266,14 +265,10 @@ private:
         } else {
             string addr = formatPasvReply(selfIp, ret.port);
             msg = ("227 Entering Passive Mode (" + addr + ")" + END_OF_LINE);
-        }
-        if (!this->networkManager.sendToCmdFd(msg.c_str(), msg.length())) {
-            this->endOfSession();
-            return;
-        } else if (ret.success) {
             this->isLastCmdSuccess = true;
             this->lastCmd = "PASV";
         }
+        sendToCmd(msg.c_str());
     }
 
     void port(int paramIndex) {
