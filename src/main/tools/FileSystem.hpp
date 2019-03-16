@@ -16,7 +16,7 @@ public:
         return isPathAbsolute(path) && (ListFiles::ls(path, result));
     }
 
-    static bool delFileAndDir(const char *pathname) {
+    static bool delFileOrDir(const char *pathname) {
         return isPathAbsolute(pathname) && removeFile(pathname);
     }
 

@@ -400,6 +400,8 @@ struct UserInfo {
     string username = "";
     string homeDir = "";
 
+    UserInfo() = default;
+
     UserInfo(bool isValid, uid_t uid, gid_t gid,
              const string &ip, const string &port,
              const string &username, const char *const homeDir) {
@@ -455,6 +457,7 @@ struct ReadLineReturnValue {
 
 
 /**
+ * @note
  * if EndOfLine is true, then EOF will always be false
  *
  * @param size the buf len should >= size+1, after read, the buf[size] is 0.

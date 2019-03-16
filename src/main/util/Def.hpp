@@ -20,7 +20,6 @@ using std::exception;
 #define READ_BUF_SIZE 1024
 #define DEFAULT_THREAD_CNT 100
 #define MAX_TASK_CNT 10240
-#define MAX_EPOLL_SIZE MAX_TASK_CNT
 #define LOGIN_INCORRECT_DELAY_SEC 3
 /**
  * according to manual of crypt's glibc note, The size of this string is fixed:
@@ -33,29 +32,16 @@ using std::exception;
  * exit code
  */
 #define BUG_EXIT 50
-#define OPEN_MAINFD_ERROR 60
-#define EPOLL_CREATE_ERROR 70
-#define EPOLL_ADD_MAINFD_ERROR 80
 
 /**
  * typedef
  */
 #define errno_t int
 #define ull_t unsigned long long
-#define PBI pair<bool, int>
 #define SA sockaddr
 #define byte char
-#define PII std::pair<int, int>
 #define PBB std::pair<bool, bool>
-#define PPI std::pair<PBB, int>
 #define PSI std::pair<std::string, int>
-#define CMD_MAX_LEN (PATH_MAX + 10)
-
-class EndOfSessionException : public exception {
-    const char *what() const noexcept override {
-        return "EndOfSessionException";
-    }
-};
 
 /**
  * product name and version
