@@ -7,7 +7,6 @@
 #include "src/main/util/NetUtility.hpp"
 #include "src/main/util/Utility.hpp"
 
-#include "FTP.hpp"
 #include "NetworkManager.hpp"
 #include "Login.hpp"
 #include "Session.hpp"

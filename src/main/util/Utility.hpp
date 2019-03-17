@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <vector>
 #include <iostream>
+#include <sys/epoll.h>
 
 using namespace std;
 
@@ -636,6 +637,37 @@ void closeDirWrap(DIR *stream) {
     if (closedir(stream) < 0) {
         bugWithErrno("closeDirWrap closedir failed", errno, true);
     }
+}
+
+/**
+ * @note
+ * If failed, the errno will be set appropriately. errno can be ENOMEM ENOSPC.
+ */
+bool epollCtlWrap(int epollFd, int op, int fd, epoll_event &event) {
+    if (epoll_ctl(epollFd, op, fd, &event) < 0) {
+        if (errno == ENOMEM || errno == ENOSPC) {
+            warningWithErrno("epollCtlWrap epoll_ctl failed", errno);
+            return false;
+        } else {
+            bugWithErrno("epollCtlWrap epoll_ctl failed", errno, true);
+        }
+    }
+    return true;
+}
+
+/**
+ * @param timeout if -1, then wait indefinitely
+ * @return The number of fd that is ready. If EINTR or timeout(no fd ready), return 0;
+ */
+int epollPWaitWrap(int epollFd, epoll_event events[],
+                   int maxEvents, int timeout, const sigset_t &sigmask) {
+    int r = epoll_pwait(epollFd, events, maxEvents, timeout, &sigmask);
+    if (r < 0 && errno != EINTR) {
+        bugWithErrno("epollPWaitWrap epoll_pwait failed", errno, true);
+    } else {
+        return r < 0 ? 0 : r;
+    }
+    assert(false);
 }
 
 #endif

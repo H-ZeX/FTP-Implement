@@ -1,3 +1,6 @@
+#ifndef __THREAD_POOL_H__
+#define __THREAD_POOL_H__
+
 #include "src/main/util/Def.hpp"
 #include "src/main/util/ThreadUtility.hpp"
 #include "src/main/util/Utility.hpp"
@@ -170,6 +173,13 @@ public:
      * Which will create the work threads.
      * If you want to create the threads before addTask,
      * call the start method beforehand.
+     * <br/>
+     * This method grantee that the Task object will safely published to the worker thread.
+     * Which means that the work thread will see the completely Task object.
+     * <br/>
+     * However, user MUST make sure NOT to pass an Task object which is constructed in another thread
+     * to this method (the thread that construct the object different from the thread that call this method)
+     * without enough synchronization.
      * @warning
      * Should NOT addTask after call shutdown method.
      * @return whether addTask success,
@@ -204,7 +214,7 @@ public:
             start();
             mutexLock(taskQueAndStateMutex);
         }
-        if (taskQue.size() >= MAX_TASK_CNT) {
+        if (taskQue.size() >= THREAD_POOL_MAX_TASK_CNT) {
             warning("ThreadPool::addTask taskQue is full");
             mutexUnlock(this->taskQueAndStateMutex);
             return false;
@@ -389,7 +399,6 @@ private:
         return threadCnt;
     }
 
-
 private:
     enum State {
         // if change this state enum, then MUST check the program carefully.
@@ -449,3 +458,5 @@ private:
     */
     atomic<State> state{};
 };
+
+#endif

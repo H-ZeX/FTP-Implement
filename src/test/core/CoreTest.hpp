@@ -194,7 +194,6 @@ public:
         }
     }
 
-
     static void testSpecialConnect() {
         OpenListenFdReturnValue ret = openListenFd(1);
         assert(ret.success);
@@ -275,7 +274,8 @@ private:
         assert(ret2.recvCnt == loginResp.length());
         assert(loginResp == string(clientCmdBuf));
 
-        string passReq = "pass nhzsmjrsgdl\r\n";
+        // TODO specify your password here
+        string passReq = "pass ...........\r\n";
         string passResp = "230 Login successful.";
         assert(writeAllData(cmdClientFd, passReq.c_str(), passReq.length()));
         session.handle();
