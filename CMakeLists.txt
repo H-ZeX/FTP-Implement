@@ -33,7 +33,8 @@ set(ToolsTestSrc
 
 set(CoreTestSrc
         src/test/core/main.cpp
-        src/test/core/CoreTest.hpp)
+        src/test/core/OtherTest.hpp
+        src/test/core/FTPTest.hpp)
 
 add_executable(${PROJECT_NAME} ${SRC})
 add_executable(UtilTest ${UtilTestSrc})

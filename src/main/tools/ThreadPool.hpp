@@ -81,6 +81,7 @@ public:
     /**
      * @note
      * After use this threadPool should delete this pointer.
+     * In the destructor, will block until all work thread end.
      * <br/>
      * @warning
      * MUST make sure that only delete it one time!

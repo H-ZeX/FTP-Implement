@@ -89,8 +89,8 @@ public:
                 assert(buf[k] == data[k]);
             }
         }
-        assert(closeFileDescriptor(fd[0]));
-        assert(closeFileDescriptor(fd[1]));
+        closeFileDescriptor(fd[0]);
+        closeFileDescriptor(fd[1]);
     }
 
     static void testReadAllAndWriteAll() {
@@ -191,7 +191,7 @@ public:
         int listenFd = openListenFd(listenPort);
         assert(listenFd >= 3);
         testOpOnListenFd(listenFd, listenPort, testCnt);
-        assert(closeFileDescriptor(listenFd));
+        closeFileDescriptor(listenFd);
         cout << "testNetworkAndReadLine success" << endl;
     }
 
@@ -209,7 +209,7 @@ public:
             OpenListenFdReturnValue server = openListenFd(1);
             assert(server.success);
             testOpOnListenFd(server.listenFd, to_string(server.port).c_str(), 10);
-            assert(closeFileDescriptor(server.listenFd));
+            closeFileDescriptor(server.listenFd);
         }
     }
 
@@ -294,7 +294,7 @@ private:
             const int acceptFd = acceptConnect(listenFd);
             assert(acceptFd >= 3 && acceptFd != clientFd && acceptFd != listenFd);
             assert(writeAllData(clientFd, msg.c_str(), msg.size()));
-            assert(closeFileDescriptor(clientFd));
+            closeFileDescriptor(clientFd);
 
             char buf[bufSize];
             ReadBuf cache;
@@ -323,7 +323,7 @@ private:
                 before = j + 2;
             }
             ReadLineReturnValue value = readLine(acceptFd, buf, static_cast<unsigned long>(bufSize - 1), cache);
-            assert(closeFileDescriptor(acceptFd));
+            closeFileDescriptor(acceptFd);
             assert(!value.success);
             assert(!value.isEndOfLine);
             assert(value.isEOF);

@@ -9,7 +9,7 @@
 #include "src/main/core/NetworkManager.hpp"
 #include "src/main/core/Session.hpp"
 
-class CoreTest {
+class OtherTest {
 public:
     static void testLogin() {
         UserInfo me = login("hzx", "nhzsmjrsgdl", "", "");
@@ -38,7 +38,7 @@ public:
 
             {
                 assert(writeAllData(cmdClientFd, msg.c_str(), msg.length()));
-                assert(closeFileDescriptor(cmdClientFd));
+                closeFileDescriptor(cmdClientFd);
                 RecvCmdReturnValue ret = session.recvCmd(buf, sizeof(buf));
                 assert(ret.success);
                 assert(!ret.isEOF);
@@ -84,7 +84,7 @@ public:
                 assert(!ret3.success);
                 assert(ret3.isEOF);
 
-                assert(closeFileDescriptor(clientDataFd));
+                closeFileDescriptor(clientDataFd);
             }
             {
                 OpenListenFdReturnValue ret = openListenFd(1);
@@ -119,10 +119,10 @@ public:
                 assert(!ret3.success);
                 assert(!ret3.success);
                 assert(ret3.isEOF);
-                assert(closeFileDescriptor(dataServerFd));
-                assert(closeFileDescriptor(ret.listenFd));
+                closeFileDescriptor(dataServerFd);
+                closeFileDescriptor(ret.listenFd);
             }
-            assert(closeFileDescriptor(cmdListenFd));
+            closeFileDescriptor(cmdListenFd);
         }
     }
 
@@ -188,9 +188,9 @@ public:
             }
             testStor(cmdClientFd, dataClientFd, session, clientCmdBuf, clientCmdBufSize, clientCmdCache);
 
-            assert(closeFileDescriptor(ret.listenFd));
-            assert(closeFileDescriptor(cmdServerFd));
-            assert(closeFileDescriptor(cmdClientFd));
+            closeFileDescriptor(ret.listenFd);
+            closeFileDescriptor(cmdServerFd);
+            closeFileDescriptor(cmdClientFd);
         }
     }
 
@@ -420,7 +420,7 @@ private:
         ReadBuf cache{};
         assert(readAllData(data, fd, cache));
         assert(writeAllData(dataClientFd, data.data(), data.size()));
-        assert(closeFileDescriptor(dataClientFd));
+        closeFileDescriptor(dataClientFd);
 
         session.handle();
         ReadLineReturnValue ret8 = readLine(cmdClientFd, clientCmdBuf, clientCmdBufSize, clientCmdCache);

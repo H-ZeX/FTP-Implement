@@ -379,11 +379,9 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
 }
 
 /**
- * @return whether close success
- *
  * Thread-Safety: Unknown(Because the `close` function's Thread-Safety is Unknown)
  */
-bool closeFileDescriptor(int fd) {
+void closeFileDescriptor(int fd) {
     if (fd < 3 && fd >= 0) {
         bug("closeFileDescriptor");
     }
@@ -396,10 +394,9 @@ bool closeFileDescriptor(int fd) {
                 bugWithErrno("closeFileDescriptor close failed", errno, true);
             }
         } else {
-            return true;
+            return;
         }
     } while (errno == EINTR);
-    assert(false);
 }
 
 /**
@@ -643,8 +640,8 @@ void closeDirWrap(DIR *stream) {
  * @note
  * If failed, the errno will be set appropriately. errno can be ENOMEM ENOSPC.
  */
-bool epollCtlWrap(int epollFd, int op, int fd, epoll_event &event) {
-    if (epoll_ctl(epollFd, op, fd, &event) < 0) {
+bool epollCtlWrap(int epollFd, int op, int fd, epoll_event *event = nullptr) {
+    if (epoll_ctl(epollFd, op, fd, event) < 0) {
         if (errno == ENOMEM || errno == ENOSPC) {
             warningWithErrno("epollCtlWrap epoll_ctl failed", errno);
             return false;
@@ -668,6 +665,26 @@ int epollPWaitWrap(int epollFd, epoll_event events[],
         return r < 0 ? 0 : r;
     }
     assert(false);
+}
+
+/**
+ * @param timeout if -1, then wait indefinitely
+ * @return The number of fd that is ready. If EINTR or timeout(no fd ready), return 0;
+ */
+int epollWaitWrap(int epollFd, epoll_event events[], int maxEvents, int timeout) {
+    int r = epoll_wait(epollFd, events, maxEvents, timeout);
+    if (r < 0 && errno != EINTR) {
+        bugWithErrno("epollPWaitWrap epoll_pwait failed", errno, true);
+    } else {
+        return r < 0 ? 0 : r;
+    }
+    assert(false);
+}
+
+void signalWrap(int signum, sighandler_t handler) {
+    if (signal(signum, handler) == SIG_ERR) {
+        bugWithErrno("signalWrap signal failed", errno, true);
+    }
 }
 
 #endif

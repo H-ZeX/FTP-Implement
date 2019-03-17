@@ -64,22 +64,24 @@ public:
         return this->dataFd >= 0;
     }
 
+    // TODO the return value
     bool closeDataListen() {
         if (this->dataListenFd < 0) {
             return false;
         }
-        bool ret = closeFileDescriptor(this->dataListenFd);
+        closeFileDescriptor(this->dataListenFd);
         this->dataListenFd = -1;
-        return ret;
+        return true;
     }
 
+    // TODO the return value
     bool closeDataConnect() {
         if (this->dataFd < 0) {
             return false;
         }
-        bool ret = closeFileDescriptor(this->dataFd);
+        closeFileDescriptor(this->dataFd);
         this->dataFd = -1;
-        return ret;
+        return true;
     }
 
     /**
@@ -162,7 +164,8 @@ public:
                     return false;
                 }
             } else {
-                return closeFileDescriptor(localFileFd);
+                closeFileDescriptor(localFileFd);
+                return true;
             }
         }
     }
