@@ -6,6 +6,7 @@
 #include "src/main/tools/ThreadPool.hpp"
 #include "src/main/util/Utility.hpp"
 #include "Session.hpp"
+#include "src/main/config/config.hpp"
 
 #include <csignal>
 #include <sys/epoll.h>
@@ -13,7 +14,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <cassert>
 #include <unordered_map>
 
 class FTP;
@@ -50,7 +50,7 @@ class FTP {
      *
      * In order to avoid the OS reuse the fd,
      * which may make multiple thread handler same data of userRecord,
-     * so the endOfSession(fd) operation can ONLY be called at destroySession,
+     * so the close(fd) can ONLY be called at destroySession,
      */
 
     // TODO is epoll functions thread safe ?
@@ -74,12 +74,13 @@ public:
     }
 
     /**
+     * @note
      * This method will block until this FTP server stop.
      * @return whether star the server success.
      */
     bool startAndRun() {
         const string mainPort = to_string(cmdListenPort);
-        int mainFd = openListenFd(mainPort.c_str());
+        int mainFd = openListenFd(mainPort.c_str(), FTP_CMD_BACK_LOG);
         if (mainFd < 0) {
             warning(("FTP::startAndRun open " + mainPort + " port failed").c_str());
             return false;
@@ -102,7 +103,7 @@ public:
         signalWrap(SIGINT, FTP::signalHandler);
         signalWrap(SIGPIPE, FTP::signalHandler);
         this->pool->start();
-        eventLoop(this, mainFd);
+        eventLoop(mainFd);
         closeFileDescriptor(mainFd);
         closeFileDescriptor(epollFd);
         return true;
@@ -136,25 +137,24 @@ private:
                                              sigToBlock);
     }
 
-    static void eventLoop(FTP *owner, int mainFd) {
+    void eventLoop(int mainFd) {
+        // make sure to delete this array
         auto *const evArray = new epoll_event[FTP_MAX_USER_ONLINE_CNT];
         const int evArraySize = FTP_MAX_USER_ONLINE_CNT;
         while (true) {
-            // epoll_pwait will return when a signal is caught.
-            // this can let us response to SIGINT fast.
-            int waitFdCnt = epollWaitWrap(owner->epollFd, evArray, evArraySize, -1);
+            int waitFdCnt = epollWaitWrap(this->epollFd, evArray, evArraySize, -1);
             for (int i = 0; i < waitFdCnt && !willExit; i++) {
                 if (evArray[i].data.fd != mainFd) {
                     if (evArray[i].events & EPOLLIN) {
-                        owner->gotoSessionHandler(evArray[i].data.fd);
+                        this->gotoSessionHandler(evArray[i].data.fd);
                     } else if (evArray[i].events & (EPOLLHUP | EPOLLERR)) {
-                        owner->destroySession(evArray[i].data.fd);
+                        this->destroySession(evArray[i].data.fd);
                     } else {
                         bug("FTP::controlThreadRunnable, has unexpected events");
                     }
                 } else {
                     if (evArray[i].events & EPOLLIN) {
-                        owner->openNewSession(mainFd);
+                        this->openNewSession(mainFd);
                     } else if (evArray[i].events & (EPOLLHUP | EPOLLERR)) {
                         bug("FTP::controlThreadRunnable mainFd closed exceptionally");
                     } else {
@@ -169,6 +169,9 @@ private:
         delete[] evArray;
     }
 
+    /*
+     * run on control thread
+     */
     void openNewSession(int mainFd) {
         // If don't accept, then can this connection be accepted again?
         // (will epoll_wait return again and use accept to get this connection).
@@ -185,7 +188,7 @@ private:
         }
         mutexUnlock(userOnlineCntMutex);
         if (!canAddNewSession) {
-            sendHelloMsg(fd);
+            sendFailedMsg(fd);
             closeFileDescriptor(fd);
             warning(("FTP::openNewSession failed, fd: " + to_string(fd)).c_str());
             return;
@@ -200,8 +203,9 @@ private:
         assert(userRecord.find(fd) == userRecord.end());
         userRecord[fd] = session;
         mutexUnlock(userRecordMutex);
-        if (!addToEpollInterestList(fd, epollFd, EPOLLIN | EPOLLONESHOT)
-            || !sendHelloMsg(fd)) {
+        // MUST has EPOLLONESHOT here
+        if (!sendHelloMsg(fd)
+            || !addToEpollInterestList(fd, epollFd, EPOLLIN | EPOLLONESHOT)) {
             warning(("FTP::openNewSession failed, fd: " + to_string(fd)).c_str());
             errorHandler(fd);
         } else {
@@ -209,6 +213,9 @@ private:
         }
     }
 
+    /*
+     * run on control thread
+     */
     void gotoSessionHandler(int fd) {
         // although just read the userRecord here,
         // the lock is necessary to act as memory barrier.
@@ -226,7 +233,8 @@ private:
     /*
      * The callbackOnEndOfCmd, callbackOnEndOfSession, userHandler
      * is called in the same thread: one of the ThreadPool's work thread.
-     * The ThreadPool grantee that the argv will be safely published to work thread(see the ThreadPool::addTask).
+     * The ThreadPool grantee that the argv will be safely published to work thread
+     * (see the ThreadPool::addTask).
      */
 
     static void *userHandler(void *argv) {
@@ -261,9 +269,10 @@ private:
         mutexLock(ftpInstanceMutex);
         FTP &owner = *::ftpInstance;
         mutexUnlock(ftpInstanceMutex);
-        mutexLock(owner.epollMutex);
 
+        mutexLock(owner.epollMutex);
         epoll_event ev{};
+        // MUST has EPOLLONESHOT here
         ev.events = EPOLLIN | EPOLLONESHOT;
         ev.data.fd = fd;
         if (!epollCtlWrap(owner.epollFd, EPOLL_CTL_MOD, fd, &ev)) {
@@ -312,6 +321,7 @@ private:
         }
         closeFileDescriptor(fd);
         mutexUnlock(userRecordMutex);
+
         mutexLock(userOnlineCntMutex);
         userOnlineCnt -= 1;
         mutexUnlock(userOnlineCntMutex);
@@ -341,12 +351,6 @@ private:
                 _exit(BUG_EXIT);
             }
         }
-    }
-
-    static sigset_t *makeSigSetForEpollWait(sigset_t *set) {
-        sigemptyset(set);
-        sigaddset(set, SIGINT);
-        return set;
     }
 
     /**

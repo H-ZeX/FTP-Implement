@@ -1,0 +1,18 @@
+//
+// Created by root on 19-3-17.
+//
+
+#ifndef FTP_SERVER_CONFIG_HPP
+#define FTP_SERVER_CONFIG_HPP
+
+#define DEFAULT_THREAD_CNT 100
+#define THREAD_POOL_MAX_TASK_CNT 10240
+#define FTP_MAX_USER_ONLINE_CNT 10200
+#define LOGIN_INCORRECT_DELAY_SEC 3
+
+#define BACK_LOG 20
+#define FTP_CMD_BACK_LOG 1024
+#define TEST_USERNAME "hzx"
+#define TEST_PASSWORD "nhzsmjrsgdl"
+
+#endif //FTP_SERVER_CONFIG_HPP

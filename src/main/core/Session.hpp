@@ -6,13 +6,13 @@
 #include "src/main/tools/ListFiles.hpp"
 #include "src/main/util/NetUtility.hpp"
 #include "src/main/util/Utility.hpp"
+#include "src/main/config/config.hpp"
 
 #include "NetworkManager.hpp"
 #include "Login.hpp"
 #include "Session.hpp"
 
 #include <map>
-#include <string>
 
 using std::string;
 using std::map;

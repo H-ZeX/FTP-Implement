@@ -1,42 +1,34 @@
 #ifndef __UTILITY_H__
 #define __UTILITY_H__
 
+#include "src/main/config/config.hpp"
+
 #include "Def.hpp"
+
 #include <arpa/inet.h>
-#include <ctype.h>
 #include <dirent.h>
-#include <errno.h>
 #include <execinfo.h>
 #include <fcntl.h>
 #include <grp.h>
-#include <linux/limits.h>
 #include <math.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <pthread.h>
 #include <pwd.h>
 #include <semaphore.h>
-#include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
-#include <sys/mman.h>
 #include <sys/resource.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
-#include <sys/sysmacros.h>
 #include <cassert>
 #include <sys/time.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
-#include <iostream>
 #include <sys/epoll.h>
 
 using namespace std;
@@ -359,6 +351,7 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
             } else if (errno == EDESTADDRREQ || errno == EFAULT || errno == EPERM) {
                 bugWithErrno("writeAllData write failed", errno, true);
             } else {
+                warningWithErrno("writeAllData write failed", errno);
                 return false;
             }
         } else if (r == 0) {
@@ -383,7 +376,7 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
  */
 void closeFileDescriptor(int fd) {
     if (fd < 3 && fd >= 0) {
-        bug("closeFileDescriptor");
+        bug(("closeFileDescriptor: the fd pass to me is illegal. fd: " + to_string(fd)).c_str());
     }
     do {
         int r = close(fd);
@@ -676,7 +669,12 @@ int epollWaitWrap(int epollFd, epoll_event events[], int maxEvents, int timeout)
     if (r < 0 && errno != EINTR) {
         bugWithErrno("epollPWaitWrap epoll_pwait failed", errno, true);
     } else {
-        return r < 0 ? 0 : r;
+        if (r < 0) {
+            warningWithErrno("epollWaitWrap epoll_wait failed", errno);
+            return 0;
+        } else {
+            return r;
+        }
     }
     assert(false);
 }

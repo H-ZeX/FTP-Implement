@@ -44,8 +44,8 @@ public class StressTest {
         this.password = password;
         this.HANG_TIME = hangTime;
         this.executorService = new ThreadPoolExecutor(
-                maxCmdConnectCnt,
-                maxCmdConnectCnt,
+                maxCmdConnectCnt / 20 + 1,
+                maxCmdConnectCnt / 10 + 10,
                 Integer.MAX_VALUE, TimeUnit.DAYS,
                 new LinkedBlockingQueue<>(maxCmdConnectCnt),
                 r -> {
@@ -94,7 +94,6 @@ public class StressTest {
             // System.err.println("Thread Sleep End: " + Thread.currentThread().getName());
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
-            assert false;
         }
     }
 

@@ -7,10 +7,6 @@
 #include <exception>
 #include <vector>
 
-using std::string;
-using std::vector;
-using std::exception;
-
 // the backtrace's buf size
 #define BT_BUF_SIZE 1024
 #define UNDETERMINED_LIMIT 0x1000
@@ -18,13 +14,9 @@ using std::exception;
 #define WARNING_BUF_SIZE (2 * ERRNO_BUF_SIZE)
 #define RECV_BUF_SIZE 1024
 #define READ_BUF_SIZE 1024
-#define DEFAULT_THREAD_CNT 100
-#define THREAD_POOL_MAX_TASK_CNT 10240
 /*
  * The FTP_MAX_USER_ONLINE_CNT should <= THREAD_POOL_MAX_TASK_CNT
  */
-#define FTP_MAX_USER_ONLINE_CNT 10200
-#define LOGIN_INCORRECT_DELAY_SEC 3
 
 /**
  * exit code
@@ -52,6 +44,5 @@ using std::exception;
  */
 #define END_OF_LINE "\r\n"
 #define SIZEOF_END_OF_LINE (sizeof("\r\n") / sizeof(char) - 1)
-#define BACK_LOG 20
 
 #endif

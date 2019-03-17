@@ -11,6 +11,8 @@ int main() {
     // OtherTest::testParsePortCmd();
     // OtherTest::testSession();
     FTPTest::test1();
+    // FTPTest::test2();
+    // FTPTest::test3();
     // OtherTest::testSpecialConnect();
 }
 

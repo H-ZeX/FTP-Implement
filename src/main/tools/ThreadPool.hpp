@@ -4,13 +4,12 @@
 #include "src/main/util/Def.hpp"
 #include "src/main/util/ThreadUtility.hpp"
 #include "src/main/util/Utility.hpp"
+#include "src/main/config/config.hpp"
 #include <atomic>
-#include <pthread.h>
 #include <queue>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <cassert>
 
 using namespace std;
 

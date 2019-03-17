@@ -20,21 +20,28 @@ set(SRC
         src/main/core/Session.hpp
         src/main/tools/ThreadPool.hpp
         src/main/util/ThreadUtility.hpp
-        src/main/util/Utility.hpp)
+        src/main/util/Utility.hpp
+        src/main/config/config.hpp
+        )
 
 set(UtilTestSrc
         src/test/util/main.cpp
         src/test/util/UtilityTest.hpp
+        src/main/config/config.hpp
         )
 set(ToolsTestSrc
         src/test/tools/main.cpp
         src/test/tools/ThreadPoolTest.hpp
-        src/test/tools/OtherToolsTest.hpp)
+        src/test/tools/OtherToolsTest.hpp
+        src/main/config/config.hpp
+        )
 
 set(CoreTestSrc
         src/test/core/main.cpp
         src/test/core/OtherTest.hpp
-        src/test/core/FTPTest.hpp)
+        src/test/core/FTPTest.hpp
+        src/main/config/config.hpp
+        )
 
 add_executable(${PROJECT_NAME} ${SRC})
 add_executable(UtilTest ${UtilTestSrc})

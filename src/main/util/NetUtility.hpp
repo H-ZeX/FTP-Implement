@@ -1,9 +1,12 @@
 #ifndef __NET_UTILITY_H__
 #define __NET_UTILITY_H__
 
-#include "Def.hpp"
-#include <cerrno>
 #include "src/main/util/Utility.hpp"
+#include "src/main/config/config.hpp"
+
+#include "Def.hpp"
+
+#include <cerrno>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <cstdio>
