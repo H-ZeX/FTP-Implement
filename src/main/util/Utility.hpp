@@ -221,12 +221,12 @@ int openWrapV1(const char *const path, int flags) {
     int fd = open(path, flags);
     while (fd < 0) {
         if (errno == EFAULT || errno == EINVAL) {
-            bugWithErrno("openWrap open failed", errno, true);
+            bugWithErrno("openWrapV1 open failed", errno, true);
         } else if (errno == EINTR) {
             fd = open(path, flags);
             continue;
         } else {
-            warningWithErrno("openWrap open failed", errno);
+            warningWithErrno("openWrapV1 open failed", errno);
             return -1;
         }
     }
@@ -242,18 +242,17 @@ int openWrapV2(const char *const path, int flag1, int flag2) {
     int fd = open(path, flag1, flag2);
     while (fd < 0) {
         if (errno == EFAULT || errno == EINVAL) {
-            bugWithErrno("openWrap open failed", errno, true);
+            bugWithErrno("openWrapV2 open failed", errno, true);
         } else if (errno == EINTR) {
             fd = open(path, flag1, flag2);
             continue;
         } else {
-            warningWithErrno("openWrap open failed", errno);
+            warningWithErrno("openWrapV2 open failed", errno);
             return -1;
         }
     }
     return fd;
 }
-
 
 struct ReadBuf {
     const size_t size = READ_BUF_SIZE;
@@ -296,7 +295,7 @@ int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
             } else {
                 // may because of bug, close of fd, another peer close connection, etc,
                 // so it is hard to handle here.
-                // and report an warning msg is not very good.
+                warningWithErrno("readWithBuf read failed", errno);
                 return -1;
             }
         } else if (cnt == 0) {
@@ -355,6 +354,7 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
                 return false;
             }
         } else if (r == 0) {
+            warning("writeAllData write failed: EOF while write");
             return false;
         } else {
             /*
@@ -393,11 +393,37 @@ void closeFileDescriptor(int fd) {
 }
 
 /**
+ * @return return -1 if failed
+ */
+int fcntlWrapV1(int fd, int cmd, int argv) {
+    while (true) {
+        int r = fcntl(fd, cmd, argv);
+        if (r < 0) {
+            if (errno == EINTR) {
+                continue;
+            } else if (errno == EFAULT || errno == EDEADLK
+                       || errno == EBADF || errno == EINVAL) {
+                bugWithErrno("setNonBlocking fcntl failed", errno, true);
+            } else {
+                warningWithErrno("setNonBlocking fcntl failed", errno);
+                return -1;
+            }
+        } else {
+            return r;
+        }
+    }
+}
+
+/**
  * Thread-Safety: Unknown(because of `fcntl` function's Thread-Safety is Unknown)
  */
 bool setNonBlocking(int fd) {
-    // TODO, the errno handler should be refined
-    return (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK) == -1);
+    int r = fcntlWrapV1(fd, F_GETFL, 0);
+    if (r < 0) {
+        return false;
+    } else {
+        return fcntlWrapV1(fd, F_SETFL, r | O_NONBLOCK) >= 0;
+    }
 }
 
 struct UserInfo {
@@ -540,6 +566,7 @@ bool lstatWrap(const string &path, struct stat &statBuf) {
             || errno == EBADF || errno == EINVAL) {
             bugWithErrno("lstatWrap lstat failed", errno, true);
         } else {
+            warningWithErrno("lstatWrap lstat failed", errno);
             return false;
         }
     }
@@ -552,6 +579,7 @@ bool statWrap(const string &path, struct stat &statBuf) {
             || errno == EBADF || errno == EINVAL) {
             bugWithErrno("lstatWrap lstat failed", errno, true);
         } else {
+            warningWithErrno("statWrap stat failed", errno);
             return false;
         }
     }
@@ -567,6 +595,7 @@ bool euidAccessWrap(const string &path, int type) {
         if (errno == EFAULT) {
             bugWithErrno("euidAccessWrap euidaccess failed", errno, true);
         } else {
+            warningWithErrno("euidAccessWrap euidaccess failed", errno);
             return false;
         }
     }
@@ -578,6 +607,7 @@ bool removeFile(const string &path) {
         if (errno == EFAULT || errno == EBADF) {
             bugWithErrno("removeFile remove failed", errno, true);
         } else {
+            warningWithErrno("removeFile remove failed", errno);
             return false;
         }
     }
@@ -589,6 +619,7 @@ bool mkdirWrap(const string &path, mode_t mode) {
         if (errno == EFAULT || errno == EBADF) {
             bugWithErrno("mkdirWrap mkdir failed", errno, true);
         } else {
+            warningWithErrno("mkdirWrap mkdir failed", errno);
             return false;
         }
     }
@@ -617,6 +648,7 @@ DIR *openDirWrap(const string &path) {
         if (errno == EBADF || errno == ENOTDIR) {
             bugWithErrno("openDirWrap opendir failed: ", errno, true);
         } else {
+            warningWithErrno("openDirWrap opendir failed", errno);
             return nullptr;
         }
     }
@@ -669,12 +701,7 @@ int epollWaitWrap(int epollFd, epoll_event events[], int maxEvents, int timeout)
     if (r < 0 && errno != EINTR) {
         bugWithErrno("epollPWaitWrap epoll_pwait failed", errno, true);
     } else {
-        if (r < 0) {
-            warningWithErrno("epollWaitWrap epoll_wait failed", errno);
-            return 0;
-        } else {
-            return r;
-        }
+        return r < 0 ? 0 : r;
     }
     assert(false);
 }

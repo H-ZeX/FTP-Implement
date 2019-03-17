@@ -8,7 +8,7 @@
 int main() {
     // ThreadPoolTest::testThreadPoolV1();
     // ThreadPoolTest::testThreadPoolV2();
-    ThreadPoolTest::testThreadPoolV3();
-    // OtherToolsTest::testListFiles();
-    // OtherToolsTest::testFS();
+    // ThreadPoolTest::testThreadPoolV3();
+    OtherToolsTest::testListFiles();
+    OtherToolsTest::testFS();
 }

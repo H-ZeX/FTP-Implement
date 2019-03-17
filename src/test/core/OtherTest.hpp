@@ -9,15 +9,14 @@
 #include "src/main/core/NetworkManager.hpp"
 #include "src/main/core/Session.hpp"
 
+#include "src/test/core/config.hpp"
+
 class OtherTest {
 public:
     static void testLogin() {
-        UserInfo me = login("hzx", "nhzsmjrsgdl", "", "");
+        UserInfo me = login(CORE_TEST_USERNAME, CORE_TEST_PASSWORD, "", "");
         assert(me.isValid);
-        cout << me.uid << " " << me.gid << " " << me.homeDir << endl;
-        me = login("hzx", "ss", "", "");
-        assert(!me.isValid);
-        me = login("hz", "ed", "", "");
+        me = login(CORE_TEST_USERNAME, "", "", "");
         assert(!me.isValid);
     }
 
@@ -25,9 +24,9 @@ public:
         const int testCnt = 1024;
         for (int j = 0; j < testCnt; j++) {
             NetworkManager session;
-            int cmdListenFd = openListenFd("8080");
+            int cmdListenFd = openListenFd(CORE_TEST_LISTEN_PORT_1);
             assert(cmdListenFd >= 3);
-            int cmdClientFd = openClientFd("localhost", "8080");
+            int cmdClientFd = openClientFd("localhost", CORE_TEST_LISTEN_PORT_1);
             assert(cmdClientFd >= 3);
             int cmdServerFd = acceptConnect(cmdListenFd);
             assert(cmdServerFd >= 3);
@@ -94,13 +93,13 @@ public:
                 assert(dataServerFd >= 3);
                 assert(writeAllData(dataServerFd, msg.c_str(), msg.length()));
                 closeFileDescriptor(dataServerFd);
-                session.recvRemoteAndWriteLocalFile("/tmp/f1");
+                session.recvRemoteAndWriteLocalFile(CORE_TEST_LOCAL_FILE_1);
                 session.closeDataConnect();
 
                 assert(session.openDataConnection("localhost", to_string(ret.port).c_str()));
                 dataServerFd = acceptConnect(ret.listenFd);
                 assert(dataServerFd >= 3);
-                session.sendLocalFile("/tmp/f1");
+                session.sendLocalFile(CORE_TEST_LOCAL_FILE_1);
                 session.closeDataConnect();
 
                 ReadBuf cache{};
@@ -264,7 +263,7 @@ private:
     static void testLogin(int cmdClientFd, Session &session,
                           char clientCmdBuf[], size_t clientCmdBufSize,
                           ReadBuf &clientCmdCache) {
-        string loginReq = "user hzx\r\n";
+        string loginReq = "user " CORE_TEST_USERNAME "\r\n";
         string loginResp = "331 Please specify the password";
         assert(writeAllData(cmdClientFd, loginReq.c_str(), loginReq.length()));
         session.handle();
@@ -275,7 +274,7 @@ private:
         assert(loginResp == string(clientCmdBuf));
 
         // TODO specify your password here
-        string passReq = "pass ...........\r\n";
+        string passReq = "pass " CORE_TEST_PASSWORD "\r\n";
         string passResp = "230 Login successful.";
         assert(writeAllData(cmdClientFd, passReq.c_str(), passReq.length()));
         session.handle();
@@ -289,7 +288,7 @@ private:
     static void testCwd(int cmdClientFd, Session &session,
                         char clientCmdBuf[], size_t clientCmdBufSize,
                         ReadBuf &clientCmdCache) {
-        string cdReq = "cwd /tmp/tdir\r\n";
+        string cdReq = "cwd " CORE_TEST_LOCAL_DIR_1 "\r\n";
         string cdResp = "250 Directory successfully changed";
         assert(writeAllData(cmdClientFd, cdReq.c_str(), cdReq.length()));
         session.handle();
@@ -304,13 +303,13 @@ private:
     static void testList(int cmdClientFd, int dataClientFd,
                          Session &session, char clientCmdBuf[],
                          size_t clientCmdBufSize, ReadBuf &clientCmdCache) {
-        FileSystem::mkDir("/tmp/FTP_Test_tdir");
-        FileSystem::mkDir("/tmp/FTP_Test_tdir/1");
-        FileSystem::mkDir("/tmp/FTP_Test_tdir/.1");
-        FileSystem::mkDir("/tmp/FTP_Test_tdir/2");
-        FileSystem::mkDir("/tmp/FTP_Test_tdir/.2");
+        FileSystem::mkDir(CORE_TEST_LOCAL_DIR_2);
+        FileSystem::mkDir(CORE_TEST_LOCAL_DIR_2 "/1");
+        FileSystem::mkDir(CORE_TEST_LOCAL_DIR_2 "/.1");
+        FileSystem::mkDir(CORE_TEST_LOCAL_DIR_2 "/2");
+        FileSystem::mkDir(CORE_TEST_LOCAL_DIR_2 "/.2");
 
-        string listReq = "list /tmp/tdir\r\n";
+        string listReq = "list " CORE_TEST_LOCAL_DIR_2 "\r\n";
         string listResp1 = "150 Here comes the directory listing.";
         string listResp2 = "226 Directory send OK.";
         assert(writeAllData(cmdClientFd, listReq.c_str(), listReq.length()));
@@ -340,7 +339,7 @@ private:
         assert(dataLen > 0);
         clientDataBuf[dataLen] = 0;
         string lsData;
-        FileSystem::ls("/tmp/tdir", lsData);
+        FileSystem::ls(CORE_TEST_LOCAL_DIR_2, lsData);
         assert(string(clientDataBuf)== lsData);
 
         ReadLineReturnValue ret6 = readLine(cmdClientFd, clientCmdBuf, clientCmdBufSize, clientCmdCache);
@@ -353,8 +352,9 @@ private:
     static void testPwd(int cmdClientFd, Session &session,
                         char clientCmdBuf[], size_t clientCmdBufSize,
                         ReadBuf &clientCmdCache) {
+        // the dir should same as the dir use in cwd
         string pwdReq = "pwd\r\n";
-        string pwdResp = "257 \"/tmp/tdir/\" is the current directory";
+        string pwdResp = "257 \"" CORE_TEST_LOCAL_DIR_1 "/\" is the current directory";
         assert(writeAllData(cmdClientFd, pwdReq.c_str(), pwdReq.length()));
         session.handle();
         ReadLineReturnValue ret4 = readLine(cmdClientFd, clientCmdBuf, clientCmdBufSize, clientCmdCache);
@@ -368,8 +368,8 @@ private:
     static void testRetr(int cmdClientFd, int dataClientFd,
                          Session &session, char clientCmdBuf[],
                          size_t clientCmdBufSize, ReadBuf &clientCmdCache) {
-        string retrReq = "retr /tmp/udaa\r\n";
-        string retrResp = "150 Opening data connection for /tmp/udaa";
+        string retrReq = "retr " CORE_TEST_LOCAL_FILE_1 "\r\n";
+        string retrResp = "150 Opening data connection for " CORE_TEST_LOCAL_FILE_1;
         string retrResp2 = "226 Transfer complete.";
         assert(writeAllData(cmdClientFd, retrReq.c_str(), retrReq.length()));
         session.handle();
@@ -388,7 +388,7 @@ private:
             closeFileDescriptor(dataClientFd);
         }
         {
-            int fd = openWrapV1("/tmp/udaa", O_RDONLY);
+            int fd = openWrapV1(CORE_TEST_LOCAL_FILE_1, O_RDONLY);
             assert(fd >= 3);
             ReadBuf cache{};
             assert(readAllData(data2, fd, cache));
@@ -409,12 +409,12 @@ private:
     static void testStor(int cmdClientFd, int dataClientFd,
                          Session &session, char clientCmdBuf[],
                          size_t clientCmdBufSize, ReadBuf &clientCmdCache) {
-        string storReq = "stor /tmp/newFile\r\n";
+        string storReq = "stor " CORE_TEST_LOCAL_FILE_2 "\r\n";
         string storResp1 = "150 Ok to send data.";
         string storResp2 = "226 Transfer complete";
 
         assert(writeAllData(cmdClientFd, storReq.c_str(), storReq.length()));
-        int fd = openWrapV1("/tmp/udaa", O_RDONLY);
+        int fd = openWrapV1(CORE_TEST_LOCAL_FILE_1, O_RDONLY);
         assert(fd >= 3);
         vector<char> data;
         ReadBuf cache{};
@@ -437,7 +437,7 @@ private:
         assert(!ret8.isEOF);
         assert(string(clientCmdBuf)==storResp2);
 
-        fd = openWrapV1("/tmp/newFile", O_RDONLY);
+        fd = openWrapV1(CORE_TEST_LOCAL_FILE_2, O_RDONLY);
         assert(fd >= 3);
         vector<char> data2;
         ReadBuf cache2{};

@@ -140,7 +140,6 @@ bool createThread(pthread_t &pid,
                   void *(*run)(void *),
                   void *argv = nullptr,
                   const pthread_attr_t *attr = nullptr) {
-
     int t = pthread_create(&pid, attr, run, argv);
     if (t == EINVAL || t == EPERM) {
         bugWithErrno("createThread pthread_create failed", t, true);

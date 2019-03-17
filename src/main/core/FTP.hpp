@@ -80,7 +80,7 @@ public:
      */
     bool startAndRun() {
         const string mainPort = to_string(cmdListenPort);
-        int mainFd = openListenFd(mainPort.c_str(), FTP_CMD_BACK_LOG);
+        int mainFd = openListenFd(mainPort.c_str(), FTP_CMD_BACKLOG);
         if (mainFd < 0) {
             warning(("FTP::startAndRun open " + mainPort + " port failed").c_str());
             return false;

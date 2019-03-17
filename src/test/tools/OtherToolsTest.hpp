@@ -8,29 +8,31 @@
 
 #include <src/main/tools/ListFiles.hpp>
 #include "src/main/tools/FileSystem.hpp"
+#include "config.hpp"
 
 class OtherToolsTest {
 public:
     static void testListFiles() {
         string result;
-        ListFiles::ls("/tmp/", result);
+        ListFiles::ls(TOOLS_TEST_LIST_DIR_1, result);
         cout << result << endl;
         result.clear();
-        ListFiles::ls("./main.cpp", result);
+        ListFiles::ls(TOOLS_TEST_LIST_DIR_2, result);
         cout << result << endl;
         result.clear();
-        ListFiles::ls("/home/hzx/MyStudy/OS/FTP/Server/src/test/tools/OtherToolsTest.hpp", result);
+        ListFiles::ls(TOOLS_TEST_LIST_FILE_1, result);
         cout << result << endl;
     }
 
     static void testFS() {
-        assert(FileSystem::mkDir("/tmp/1ttt"));
-        assert(FileSystem::delFileOrDir("/tmp/1ttt"));
-        assert(FileSystem::mkDir("/tmp/nDir"));
-        assert(FileSystem::delFileOrDir("/tmp/nDir"));
-        assert(FileSystem::isExistsAndReadable("/tmp/2ttt"));
-        assert(!FileSystem::isPathAbsolute("."));
-        PBB t = FileSystem::isDir("/tmp");
+        assert(FileSystem::mkDir(TOOLS_TEST_MKDIR_1));
+        assert(FileSystem::delFileOrDir(TOOLS_TEST_MKDIR_1));
+        assert(FileSystem::mkDir(TOOLS_TEST_MKDIR_2));
+        assert(FileSystem::delFileOrDir(TOOLS_TEST_MKDIR_2));
+
+        assert(FileSystem::isExistsAndReadable(TOOLS_TEST_FILE_1));
+        assert(!FileSystem::isPathAbsolute(TOOLS_TEST_DIR_1));
+        PBB t = FileSystem::isDir(TOOLS_TEST_DIR_2);
         assert(t.first && t.second);
     }
 };

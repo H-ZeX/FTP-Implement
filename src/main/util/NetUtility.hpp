@@ -94,7 +94,7 @@ int openClientFd(const char *hostname, const char *port) {
  * MT-Safety: Unknown(Because the `socket`, `connect`, `close`,
  * `listen`, `bind` function's Thread-Safety is Unknown)
  */
-int openListenFd(const char *port, int backLog = BACK_LOG) {
+int openListenFd(const char *port, int backLog = DEFAULT_BACKLOG) {
     assert(port != nullptr && backLog > 0);
     addrinfo hints{}, *list;
     int listenFd = 0, opt = 1;
@@ -146,7 +146,7 @@ struct OpenListenFdReturnValue {
 /**
  * Open an listenFd without specify the port(the OS will find an available port).
  */
-OpenListenFdReturnValue openListenFd(int backLog = BACK_LOG) {
+OpenListenFdReturnValue openListenFd(int backLog = DEFAULT_BACKLOG) {
     assert(backLog > 0);
     int listenFd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenFd < 0) {

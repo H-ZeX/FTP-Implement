@@ -6,6 +6,7 @@
 #define FTP_SERVER_UTILITY_TEST_H
 
 #include <cassert>
+#include "config.hpp"
 #include "src/main/util/Utility.hpp"
 #include "src/main/util/ThreadUtility.hpp"
 #include "src/main/util/NetUtility.hpp"
@@ -96,10 +97,10 @@ public:
     static void testReadAllAndWriteAll() {
         vector<char> result;
         ReadBuf cache{};
-        int fd = openWrapV1("/tmp/udaa", O_RDONLY);
+        int fd = openWrapV1(UTIL_TEST_FILE_1, O_RDONLY);
         assert(fd >= 3);
         assert(readAllData(result, fd, cache));
-        int fd2 = openWrapV2("/tmp/udaa_copy", O_WRONLY | O_CREAT, S_IRWXO | S_IRWXU | S_IRWXG);
+        int fd2 = openWrapV2(UTIL_TEST_FILE_2, O_WRONLY | O_CREAT, S_IRWXO | S_IRWXU | S_IRWXG);
         assert(fd2 >= 3);
         cout << result.size() << endl;
         writeAllData(fd2, result.data(), result.size());
@@ -196,10 +197,8 @@ public:
     }
 
     static void testOpenWrap() {
-        assert(openWrapV1("/tmp/33ws", 0) == -1);
-        assert(openWrapV1("/tmp/2ttt", 0) >= 3);
-        assert(openWrapV2("/tmp/3dd3", 0, 0) == -1);
-        assert(openWrapV2("/tmp/2ttt", 0, 0) >= 3);
+        assert(openWrapV1(UTIL_TEST_FILE_4, 0) == -1);
+        assert(openWrapV1(UTIL_TEST_FILE_3, 0) >= 3);
         // openWrapV1((char *) 1, 0);
         // openWrapV2(nullptr, 0, 0);
     }
@@ -233,7 +232,7 @@ public:
     }
 
     static void testGetUidGidHomeDir() {
-        UserInfo info = getUidGidHomeDir("hzx");
+        UserInfo info = getUidGidHomeDir(UTIL_TEST_USERNAME);
         cout << info.cmdIp << endl
              << info.cmdPort << endl
              << info.gid << endl
@@ -244,10 +243,10 @@ public:
     }
 
     static void testOpenDirAndCloseDir() {
-        DIR *stream = openDirWrap("/tmp");
+        DIR *stream = openDirWrap(UTIL_TEST_DIR_1);
         assert(stream != nullptr);
         closeDirWrap(stream);
-        stream = openDirWrap("/kkk");
+        stream = openDirWrap(UTIL_TEST_DIR_2);
         assert(stream == nullptr);
     }
 

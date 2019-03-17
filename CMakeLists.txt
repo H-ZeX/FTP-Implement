@@ -27,20 +27,20 @@ set(SRC
 set(UtilTestSrc
         src/test/util/main.cpp
         src/test/util/UtilityTest.hpp
-        src/main/config/config.hpp
+        src/test/util/config.hpp
         )
 set(ToolsTestSrc
         src/test/tools/main.cpp
         src/test/tools/ThreadPoolTest.hpp
         src/test/tools/OtherToolsTest.hpp
-        src/main/config/config.hpp
+        src/test/tools/config.hpp
         )
 
 set(CoreTestSrc
         src/test/core/main.cpp
         src/test/core/OtherTest.hpp
         src/test/core/FTPTest.hpp
-        src/main/config/config.hpp
+        src/test/core/config.hpp
         )
 
 add_executable(${PROJECT_NAME} ${SRC})

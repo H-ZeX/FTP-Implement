@@ -44,7 +44,7 @@ public:
 
     OpenDataListenReturnValue openDataListen() {
         // Only one user will use this fd, so backLog set to 1.
-        OpenListenFdReturnValue fd = openListenFd(1);
+        OpenListenFdReturnValue fd = openListenFd(FTP_DATA_CONNECTION_BACKLOG);
         this->dataListenFd = fd.success ? fd.listenFd : -1;
         return {fd.success, fd.port};
     }
@@ -64,7 +64,6 @@ public:
         return this->dataFd >= 0;
     }
 
-    // TODO the return value
     bool closeDataListen() {
         if (this->dataListenFd < 0) {
             return false;
@@ -74,7 +73,6 @@ public:
         return true;
     }
 
-    // TODO the return value
     bool closeDataConnect() {
         if (this->dataFd < 0) {
             return false;
@@ -149,6 +147,9 @@ public:
         int localFileFd = openWrapV2(path, O_CREAT | O_WRONLY,
                                      S_IWUSR | S_IRUSR | S_IWOTH
                                      | S_IROTH | S_IWGRP | S_IRGRP);
+        if (localFileFd < 0) {
+            return false;
+        }
         byte buf[RECV_BUF_SIZE + 10];
         ReadBuf cache{};
         while (true) {
