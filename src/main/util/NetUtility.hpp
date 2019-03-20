@@ -94,8 +94,8 @@ int openClientFd(const char *hostname, const char *port) {
  * MT-Safety: Unknown(Because the `socket`, `connect`, `close`,
  * `listen`, `bind` function's Thread-Safety is Unknown)
  */
-int openListenFd(const char *port, int backLog = DEFAULT_BACKLOG) {
-    assert(port != nullptr && backLog > 0);
+int openListenFd(const char *port, int backlog = DEFAULT_BACKLOG) {
+    assert(port != nullptr && backlog > 0);
     addrinfo hints{}, *list;
     int listenFd = 0, opt = 1;
     hints.ai_socktype = SOCK_STREAM;
@@ -104,7 +104,7 @@ int openListenFd(const char *port, int backLog = DEFAULT_BACKLOG) {
     // getaddrinfo is MT-safe env local
     int rc = 0;
     if ((rc = getaddrinfo(nullptr, port, &hints, &list)) != 0) {
-        warningWithErrno("openClientFd getaddrinfo failed",
+        warningWithErrno("OpenListenFd(port, backlog) getaddrinfo failed",
                          rc == EAI_SYSTEM ? errno : rc);
         return -1;
     }
@@ -127,9 +127,9 @@ int openListenFd(const char *port, int backLog = DEFAULT_BACKLOG) {
         warning(("open listen file descriptor on port " + std::string(port) + " failed").c_str());
         return -1;
     }
-    if (listen(listenFd, backLog) < 0) {
+    if (listen(listenFd, backlog) < 0) {
         // TODO errno handler should be refined
-        warningWithErrno("openListenFd listen failed", errno);
+        warningWithErrno("openListenFd(port, backlog) listen failed", errno);
         return -1;
     }
     return listenFd;
@@ -146,29 +146,29 @@ struct OpenListenFdReturnValue {
 /**
  * Open an listenFd without specify the port(the OS will find an available port).
  */
-OpenListenFdReturnValue openListenFd(int backLog = DEFAULT_BACKLOG) {
-    assert(backLog > 0);
+OpenListenFdReturnValue openListenFd(int backlog = DEFAULT_BACKLOG) {
+    assert(backlog > 0);
     int listenFd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenFd < 0) {
         if (errno == EACCES || errno == EAFNOSUPPORT
             || errno == EINVAL || errno == EPROTONOSUPPORT) {
-            bugWithErrno("openListenFd socket failed", errno, true);
+            bugWithErrno("openListenFd(backlog) socket failed", errno, true);
         } else {
-            warningWithErrno("openListenFd socket failed", errno);
+            warningWithErrno("openListenFd(backlog) socket failed", errno);
             return {false, -1, -1};
         }
     }
     int opt = 1;
     if (setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (const void *) &opt, sizeof(int)) < 0) {
-        bugWithErrno("openListenFd setsockopt failed", errno, true);
+        bugWithErrno("openListenFd(backlog) setsockopt failed", errno, true);
     }
-    if (listen(listenFd, backLog) < 0) {
+    if (listen(listenFd, backlog) < 0) {
         if (errno == EADDRINUSE) {
-            warningWithErrno("openListenFd listen failed", errno);
+            warningWithErrno("openListenFd(backlog) listen failed", errno);
             closeFileDescriptor(listenFd);
             return {false, -1, -1};
         } else {
-            bugWithErrno("openListenFd listen failed", errno, true);
+            bugWithErrno("openListenFd(backlog) listen failed", errno, true);
         }
     }
     sockaddr_in sin{};
@@ -176,15 +176,15 @@ OpenListenFdReturnValue openListenFd(int backLog = DEFAULT_BACKLOG) {
     if (getsockname(listenFd, (struct sockaddr *) &sin, &len) < 0) {
         if (errno == ENOBUFS) {
             closeFileDescriptor(listenFd);
-            warningWithErrno("openListenFd getsockname failed", errno);
+            warningWithErrno("openListenFd(backlog) getsockname failed", errno);
             return {false, -1, -1};
         } else {
-            bugWithErrno("openListenFd getsockname failed", errno, true);
+            bugWithErrno("openListenFd(backlog) getsockname failed", errno, true);
         }
     }
     char netInfo[1024];
     if (inet_ntop(AF_INET, &sin.sin_addr, netInfo, sizeof(netInfo) - 10) == nullptr) {
-        bugWithErrno("openListenFd inet_ntop failed", errno, true);
+        bugWithErrno("openListenFd(backlog) inet_ntop failed", errno, true);
     }
     return {true, listenFd, ntohs(sin.sin_port)};
 }

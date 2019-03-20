@@ -46,7 +46,7 @@ public class StressTest {
                       @Value("${Tester.Password}") String password,
                       @Value("${Tester.StorTestDir}") String storCmdDir,
                       @Value("${Tester.ListTestDir}") List<String> testDirs
-    ) throws IOException {
+    ) throws IOException, InterruptedException {
         this.TEST_CNT = testCnt;
         this.MAX_CMD_CONNECTION_CNT = maxCmdConnectionCnt;
         this.SERVER_IP = serverAddr;
@@ -57,7 +57,6 @@ public class StressTest {
         this.STOR_CMD_DIR = storCmdDir;
         this.testDirs = testDirs;
 
-        // // TODO uncomment this when release
         // File storDir = new File(storCmdDir);
         // if (storDir.exists() || !storDir.isAbsolute()) {
         //     throw new IllegalArgumentException("MUST make sure the Tester.StorTestDir DOESN'T exist and make sure it is absolute");
@@ -89,22 +88,18 @@ public class StressTest {
     }
 
     public void stressWithoutDataConnection() throws InterruptedException, ExecutionException {
-        for (int i = 0; i < TEST_CNT; i++) {
-            for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
-                executorService.submit(() -> {
-                    handOnCmdConnection();
-                    return null;
-                });
-            }
-            for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
-                executorService.take().get();
-            }
-            final int expected = this.MAX_CMD_CONNECTION_CNT;
-            assert successCnt.sum() == expected : successCnt.sum() + ", " + expected;
-            successCnt.reset();
-            System.gc();
-            Thread.sleep(120 * 1000);
+        for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
+            executorService.submit(() -> {
+                handOnCmdConnection();
+                return null;
+            });
         }
+        for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
+            executorService.take().get();
+        }
+        final int expected = this.MAX_CMD_CONNECTION_CNT;
+        assert successCnt.sum() == expected : successCnt.sum() + ", " + expected;
+        successCnt.reset();
     }
 
     public void handOnCmdConnection() {
@@ -133,7 +128,6 @@ public class StressTest {
             }
             successCnt.add(1);
             Thread.sleep(HANG_TIME);
-            // System.err.println("Thread Sleep End: " + Thread.currentThread().getName());
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         } finally {
@@ -210,7 +204,7 @@ public class StressTest {
         assert r.startsWith("150") : r;
         Socket socket = listen.accept();
         listen.close();
-        consumeUntilEOF(socket.getInputStream());
+        readUntilEOF(socket.getInputStream());
         socket.close();
         r = readResponse(cmdInput);
         if (r == null) {
@@ -231,7 +225,7 @@ public class StressTest {
             while (true) ;
         }
         assert r.startsWith("150") : r;
-        consumeUntilEOF(socket.getInputStream());
+        readUntilEOF(socket.getInputStream());
         socket.close();
         r = readResponse(cmdInput);
         if (r == null) {
@@ -264,7 +258,7 @@ public class StressTest {
         }
         assert r.startsWith("226") : r;
         FileInputStream input = new FileInputStream(file);
-        String fileText = consumeUntilEOF(input);
+        String fileText = readUntilEOF(input);
         input.close();
         assert testMsg.equals(fileText) : fileText;
     }
@@ -290,7 +284,7 @@ public class StressTest {
         }
         assert r.startsWith("226") : r;
         FileInputStream input = new FileInputStream(file);
-        String fileText = consumeUntilEOF(input);
+        String fileText = readUntilEOF(input);
         input.close();
         assert testMsg.equals(fileText) : fileText;
     }
@@ -302,13 +296,13 @@ public class StressTest {
         assert match;
         String addr = matcher.group();
         String[] tmp = addr.split(",");
-        assert tmp.length == 6 : Arrays.toString(tmp) + "";
+        assert tmp.length == 6 : Arrays.toString(tmp);
         String ip = String.join(".", tmp[0], tmp[1], tmp[2], tmp[3]);
         int port = Integer.parseInt(tmp[4]) * 256 + Integer.parseInt(tmp[5]);
         return new Object[]{ip, port};
     }
 
-    private String consumeUntilEOF(InputStream in) throws IOException {
+    private String readUntilEOF(InputStream in) throws IOException {
         byte[] buf = new byte[1024];
         StringBuilder res = new StringBuilder();
         while (true) {
