@@ -11,6 +11,10 @@
 #include "src/main/core/FTP.hpp"
 
 int main(int argc, char **argv) {
+    if (getuid() != 0) {
+        fprintf(stderr, "warning: This server should run with sudo\n");
+        exit(0);
+    }
     int port;
     if (argc <= 1) {
         cerr << "usage: nc <port>, if port is not specified, user 8001" << endl;
