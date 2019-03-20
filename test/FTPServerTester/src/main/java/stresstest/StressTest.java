@@ -9,10 +9,7 @@ import java.net.Socket;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.regex.Matcher;
@@ -23,6 +20,7 @@ public class StressTest {
     private final int HANG_TIME;
     private final int MAX_CMD_CONNECTION_CNT;
     private final int SERVER_PORT;
+    private final int TEST_CNT;
     private final String SERVER_IP;
     private final String USERNAME;
     private final String PASSWORD;
@@ -30,7 +28,7 @@ public class StressTest {
     // testDirs will be read in multiple threads,
     // It MUST be final to safely publish to other threads
     private final List<String> testDirs;
-    private final ExecutorService executorService;
+    private final CompletionService<Void> executorService;
     private final Pattern pasvPattern;
 
     private final ThreadLocal<Random> localRandom = new ThreadLocal<>();
@@ -38,7 +36,8 @@ public class StressTest {
     private final AtomicInteger finishCnt = new AtomicInteger(0);
     private final LongAdder successCnt = new LongAdder();
 
-    public StressTest(@Value("${StressTest.MaxCmdConnectionCnt}") int maxCmdConnectionCnt,
+    public StressTest(@Value("${StressTest.TestCnt}") int testCnt,
+                      @Value("${StressTest.MaxCmdConnectionCnt}") int maxCmdConnectionCnt,
                       @Value("${StressTest.MaxThreadCnt}") int maxThreadCnt,
                       @Value("${StressTest.HangTime}") int hangTime,
                       @Value("${Tester.TesterServerAddress}") String serverAddr,
@@ -48,6 +47,7 @@ public class StressTest {
                       @Value("${Tester.StorTestDir}") String storCmdDir,
                       @Value("${Tester.ListTestDir}") List<String> testDirs
     ) throws IOException {
+        this.TEST_CNT = testCnt;
         this.MAX_CMD_CONNECTION_CNT = maxCmdConnectionCnt;
         this.SERVER_IP = serverAddr;
         this.SERVER_PORT = serverPort;
@@ -57,26 +57,26 @@ public class StressTest {
         this.STOR_CMD_DIR = storCmdDir;
         this.testDirs = testDirs;
 
-        // TODO uncomment this when release
-        File storDir = new File(storCmdDir);
-        if (storDir.exists() || !storDir.isAbsolute()) {
-            throw new IllegalArgumentException("MUST make sure the Tester.StorTestDir DOESN'T exist and make sure it is absolute");
-        }
-        if (!storDir.mkdirs()) {
-            throw new IOException("create Tester.StorTestDir failed");
-        }
-        for (String testDir : testDirs) {
-            File dir = new File(testDir);
-            if (dir.exists() || !dir.isAbsolute()) {
-                throw new IllegalArgumentException(" MUST make sure Tester.ListTestDir DON'T exist, and make sure they are absolute");
-            }
-            if (!dir.mkdirs()) {
-                throw new IOException("create Tester.StorTestDir failed");
-            }
-        }
+        // // TODO uncomment this when release
+        // File storDir = new File(storCmdDir);
+        // if (storDir.exists() || !storDir.isAbsolute()) {
+        //     throw new IllegalArgumentException("MUST make sure the Tester.StorTestDir DOESN'T exist and make sure it is absolute");
+        // }
+        // if (!storDir.mkdirs()) {
+        //     throw new IOException("create Tester.StorTestDir failed");
+        // }
+        // for (String testDir : testDirs) {
+        //     File dir = new File(testDir);
+        //     if (dir.exists() || !dir.isAbsolute()) {
+        //         throw new IllegalArgumentException(" MUST make sure Tester.ListTestDir DON'T exist, and make sure they are absolute");
+        //     }
+        //     if (!dir.mkdirs()) {
+        //         throw new IOException("create Tester.StorTestDir failed");
+        //     }
+        // }
 
         int threadCnt = maxCmdConnectionCnt > maxThreadCnt ? maxThreadCnt : maxCmdConnectionCnt;
-        this.executorService = new ThreadPoolExecutor(
+        this.executorService = new ExecutorCompletionService<>(new ThreadPoolExecutor(
                 threadCnt, threadCnt,
                 Integer.MAX_VALUE, TimeUnit.DAYS,
                 new LinkedBlockingQueue<>(maxCmdConnectionCnt),
@@ -84,23 +84,27 @@ public class StressTest {
                     Thread thread = new Thread(r);
                     thread.setName("StressTest#" + thread.getId());
                     return thread;
-                });
+                }));
         this.pasvPattern = Pattern.compile("\\d+,\\d+,\\d+,\\d+,\\d+,\\d+");
     }
 
-    public void stressWithoutDataConnection() {
-        for (int i = 0; i < MAX_CMD_CONNECTION_CNT; i++) {
-            executorService.execute(this::handOnCmdConnection);
-        }
-        executorService.shutdown();
-        while (true) {
-            try {
-                executorService.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
-                break;
-            } catch (InterruptedException ignore) {
+    public void stressWithoutDataConnection() throws InterruptedException, ExecutionException {
+        for (int i = 0; i < TEST_CNT; i++) {
+            for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
+                executorService.submit(() -> {
+                    handOnCmdConnection();
+                    return null;
+                });
             }
+            for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
+                executorService.take().get();
+            }
+            final int expected = this.MAX_CMD_CONNECTION_CNT;
+            assert successCnt.sum() == expected : successCnt.sum() + ", " + expected;
+            successCnt.reset();
+            System.gc();
+            Thread.sleep(120 * 1000);
         }
-        assert successCnt.sum() == this.MAX_CMD_CONNECTION_CNT : successCnt.sum() + ", " + this.MAX_CMD_CONNECTION_CNT;
     }
 
     public void handOnCmdConnection() {
@@ -112,7 +116,7 @@ public class StressTest {
         } catch (InterruptedException ignored) {
         }
         try (Socket socket = new Socket(SERVER_IP, SERVER_PORT)) {
-            socket.setSoTimeout(1024 * 10);
+            // socket.setSoTimeout(1024 * 10);
             OutputStream out = socket.getOutputStream();
             InputStream in = socket.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(in));
@@ -122,11 +126,11 @@ public class StressTest {
             } else {
                 listUsingPortCmd(reader, out, socket);
             }
-            // if (localRandom.get().nextBoolean()) {
-            //     storUsingPortCmd(reader, out, socket);
-            // } else {
-            //     storUsingPasvCmd(reader, out, socket);
-            // }
+            if (localRandom.get().nextBoolean()) {
+                storUsingPortCmd(reader, out, socket);
+            } else {
+                storUsingPasvCmd(reader, out, socket);
+            }
             successCnt.add(1);
             Thread.sleep(HANG_TIME);
             // System.err.println("Thread Sleep End: " + Thread.currentThread().getName());
@@ -140,11 +144,12 @@ public class StressTest {
 
     private ServerSocket portCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
         ServerSocket listen = new ServerSocket();
+        listen.setReuseAddress(true);
         listen.bind(null, 1);
         int port = listen.getLocalPort();
         cmdOutput.write(("port 127,0,0,1," + port / 256 + "," + port % 256 + "\r\n").getBytes());
         cmdOutput.flush();
-        String r = readResponse(cmdInput, owner);
+        String r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -156,7 +161,7 @@ public class StressTest {
     private Socket pasvCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
         cmdOutput.write("pasv\r\n".getBytes());
         cmdOutput.flush();
-        String r = readResponse(cmdInput, owner);
+        String r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -168,7 +173,7 @@ public class StressTest {
 
     private void login(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
         // read the welcome msg
-        String r = readResponse(cmdInput, owner);
+        String r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -176,7 +181,7 @@ public class StressTest {
         assert r.startsWith("220") : r;
         cmdOutput.write(("user " + USERNAME + "\r\n").getBytes());
         cmdOutput.flush();
-        r = readResponse(cmdInput, owner);
+        r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -184,7 +189,7 @@ public class StressTest {
         assert r.startsWith("331") : r;
         cmdOutput.write(("pass " + PASSWORD + "\r\n").getBytes());
         cmdOutput.flush();
-        r = readResponse(cmdInput, owner);
+        r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -197,7 +202,7 @@ public class StressTest {
         String dir = testDirs.get(localRandom.get().nextInt(testDirs.size()));
         cmdOutput.write(("list " + dir + "\r\n").getBytes());
         cmdOutput.flush();
-        String r = readResponse(cmdInput, owner);
+        String r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -207,7 +212,7 @@ public class StressTest {
         listen.close();
         consumeUntilEOF(socket.getInputStream());
         socket.close();
-        r = readResponse(cmdInput, owner);
+        r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -220,7 +225,7 @@ public class StressTest {
         String dir = testDirs.get(localRandom.get().nextInt(testDirs.size()));
         cmdOutput.write(("list " + dir + "\r\n").getBytes());
         cmdOutput.flush();
-        String r = readResponse(cmdInput, owner);
+        String r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -228,7 +233,7 @@ public class StressTest {
         assert r.startsWith("150") : r;
         consumeUntilEOF(socket.getInputStream());
         socket.close();
-        r = readResponse(cmdInput, owner);
+        r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -241,7 +246,7 @@ public class StressTest {
         String file = STOR_CMD_DIR + "/tmp_" + cntForStor.addAndGet(1);
         cmdOutput.write(("stor " + file + "\r\n").getBytes());
         cmdOutput.flush();
-        String r = readResponse(cmdInput, owner);
+        String r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -252,7 +257,7 @@ public class StressTest {
         final String testMsg = "testMsg";
         socket.getOutputStream().write(testMsg.getBytes());
         socket.close();
-        r = readResponse(cmdInput, owner);
+        r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -269,7 +274,7 @@ public class StressTest {
         String file = STOR_CMD_DIR + "/tmp_" + cntForStor.addAndGet(1);
         cmdOutput.write(("stor " + file + "\r\n").getBytes());
         cmdOutput.flush();
-        String r = readResponse(cmdInput, owner);
+        String r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -278,7 +283,7 @@ public class StressTest {
         final String testMsg = "testMsg";
         socket.getOutputStream().write(testMsg.getBytes());
         socket.close();
-        r = readResponse(cmdInput, owner);
+        r = readResponse(cmdInput);
         if (r == null) {
             Thread.sleep(1024 * 1024 * 1024);
             while (true) ;
@@ -316,7 +321,7 @@ public class StressTest {
         return res.toString();
     }
 
-    private String readResponse(BufferedReader in, Socket owner) throws IOException {
+    private String readResponse(BufferedReader in) throws IOException {
         return in.readLine();
     }
 }

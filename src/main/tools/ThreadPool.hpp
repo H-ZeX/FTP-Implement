@@ -99,7 +99,7 @@ public:
      * it will replace by DEFAULT_THREAD_CNT.
      */
     // TODO find a better way to free this object
-    static ThreadPool *getInstance(size_t threadCnt = DEFAULT_THREAD_CNT,
+    static ThreadPool *getInstance(size_t threadCnt = DEFAULT_THREAD_CNT_OF_THREAD_POOL,
                                    const int *sigToBlock = nullptr) {
         /*
          * MUST NOT use DCL: check whether singleton==nullptr before lock mutex.
@@ -304,7 +304,7 @@ private:
      * only the getInstance called this constructor,
      * the getInstance is protected by singletonMutex.
      */
-    explicit ThreadPool(size_t threadCnt = DEFAULT_THREAD_CNT,
+    explicit ThreadPool(size_t threadCnt,
                         const int *sigToBlock = nullptr)
             : threadCnt(computeThreadCnt(threadCnt)) {
         // make sure that the `this` point is NOT escaped
@@ -394,7 +394,7 @@ private:
 
     static size_t computeThreadCnt(size_t threadCnt) {
         if (maxThreadCnt() < threadCnt) {
-            return DEFAULT_THREAD_CNT;
+            return DEFAULT_THREAD_CNT_OF_THREAD_POOL;
         }
         return threadCnt;
     }

@@ -8,6 +8,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,7 +19,7 @@ public class StressTestTest {
     StressTest stressTest;
 
     @Test
-    public void test1() {
+    public void test1() throws ExecutionException, InterruptedException {
         stressTest.stressWithoutDataConnection();
     }
 

@@ -235,7 +235,7 @@ private:
             if (!tmp.isValid) {
                 msg = "530 Login incorrect." END_OF_LINE;
                 userInfo.isValid = false;
-                usleep(LOGIN_INCORRECT_DELAY_SEC * 1000000);
+                usleep(LOGIN_FAIL_DELAY_SEC * 1000000);
             } else {
                 msg = "230 Login successful." END_OF_LINE;
                 userInfo.isValid = true;

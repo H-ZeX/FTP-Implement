@@ -45,12 +45,24 @@ static FTP *ftpInstance = nullptr;
  */
 class FTP {
     /*
-     * The user's cmd fd MUST be EPOLLONESHOT,
-     * or this class's state will be destroy because that multiple thread handle the data.
-     *
-     * In order to avoid the OS reuse the fd,
-     * which may make multiple thread handler same data of userRecord,
-     * so the close(fd) can ONLY be called at destroySession,
+     * At any time, only one thread can handle the same session,
+     * Should NOT handle it in multiple threads.
+     * How this class make sure it?
+     * 1. User's cmd fd MUST be EPOLLONESHOT,
+     * to make sure when one session is handled,
+     * epoll_wait will not return this fd.
+     * 2. Because when an user's cmd fd is available,
+     * its session is get by from userRecord,
+     * which is a map from fd to session* .
+     * So at any time when the session alive,
+     * the corresponding fd should NOT closed,
+     * which will avoid the OS reuse this fd.
+     * 3. When destroy session and close the fd, it lock the userRecordMutex,
+     * then even if the os reuse the fd before finish destroy session,
+     * the openNewSession method can NOT create new Session
+     * and write to the userRecord map, and can NOT begin to handle the fd.
+     * 4.The openNewSession method and epoll_wait is run in the same thread,
+     * so before the openNewSession finished, the user's fd will not be used.
      */
 
     // TODO is epoll functions thread safe ?
@@ -63,7 +75,7 @@ public:
      * @return
      */
     static FTP *getInstance(int cmdListenPort = 21,
-                            int threadCntOfThreadPool = DEFAULT_THREAD_CNT_OF_THREAD_POOL) {
+                            size_t threadCntOfThreadPool = DEFAULT_THREAD_CNT_OF_THREAD_POOL) {
         // the mutex act as memory barrier
         mutexLock(ftpInstanceMutex);
         if (ftpInstance == nullptr) {
@@ -78,6 +90,7 @@ public:
      * This method will block until this FTP server stop.
      * @return whether star the server success.
      */
+    // run on control thread
     bool startAndRun() {
         const string mainPort = to_string(cmdListenPort);
         int mainFd = openListenFd(mainPort.c_str(), FTP_CMD_BACKLOG);
@@ -85,21 +98,21 @@ public:
             warning(("FTP::startAndRun open " + mainPort + " port failed").c_str());
             return false;
         }
-        // the mutex act as the memory barrier for epollFd
-        mutexLock(epollMutex);
+        // mutexLock(epollMutex);
+
         // epoll_create(size)'s size is deprecated since linux 2.6.8,
         // but must be positive
         if ((epollFd = epoll_create(1)) < 0) {
             warningWithErrno("FTP::startAndRun epoll_create", errno);
-            mutexUnlock(epollMutex);
+            // mutexUnlock(epollMutex);
             return false;
         }
         if (!addToEpollInterestList(mainFd, epollFd)) {
             warningWithErrno("FTP::startAndRun addToEpollInterestList failed", errno);
-            mutexUnlock(epollMutex);
+            // mutexUnlock(epollMutex);
             return false;
         }
-        mutexUnlock(epollMutex);
+        // mutexUnlock(epollMutex);
         signalWrap(SIGINT, FTP::signalHandler);
         signalWrap(SIGPIPE, FTP::signalHandler);
         this->pool->start();
@@ -130,17 +143,16 @@ private:
             // TODO replace this using exception
             bug("FTP::getInstance failed: cmdListenPort <=0");
         }
-        if (threadCntOfThreadPool < 0) {
-            threadCntOfThreadPool = DEFAULT_THREAD_CNT_OF_THREAD_POOL;
-        }
         this->pool = ThreadPool::getInstance(threadCntOfThreadPool,
                                              sigToBlock);
     }
 
+    /*
+     * run on control thread
+     */
     void eventLoop(int mainFd) {
-        // make sure to delete this array
-        auto *const evArray = new epoll_event[FTP_MAX_USER_ONLINE_CNT];
         const int evArraySize = FTP_MAX_USER_ONLINE_CNT;
+        auto *const evArray = new epoll_event[evArraySize];
         while (true) {
             int waitFdCnt = epollWaitWrap(this->epollFd, evArray, evArraySize, -1);
             for (int i = 0; i < waitFdCnt && !willExit; i++) {
@@ -203,13 +215,21 @@ private:
         assert(userRecord.find(fd) == userRecord.end());
         userRecord[fd] = session;
         mutexUnlock(userRecordMutex);
-        // MUST has EPOLLONESHOT here
-        if (!sendHelloMsg(fd)
-            || !addToEpollInterestList(fd, epollFd, EPOLLIN | EPOLLONESHOT)) {
+
+        if (!sendHelloMsg(fd)) {
             warning(("FTP::openNewSession failed, fd: " + to_string(fd)).c_str());
             errorHandler(fd);
         } else {
-            myLog(("accept one user, fd: " + to_string(fd)).c_str());
+            // mutexLock(epollMutex);
+            // MUST has EPOLLONESHOT here
+            bool ok = addToEpollInterestList(fd, epollFd, EPOLLIN | EPOLLONESHOT);
+            // mutexUnlock(epollMutex);
+            if (!ok) {
+                warning(("FTP::openNewSession failed, fd: " + to_string(fd)).c_str());
+                errorHandler(fd);
+            } else {
+                myLog(("accept one user, fd: " + to_string(fd)).c_str());
+            }
         }
     }
 
@@ -237,12 +257,18 @@ private:
      * (see the ThreadPool::addTask).
      */
 
+    /*
+     * run one threadPool's work thread
+     */
     static void *userHandler(void *argv) {
         Session &session = *(Session *) argv;
         session.handle();
         return nullptr;
     }
 
+    /*
+     * run one threadPool's work thread
+     */
     static void callbackOnEndOfSession(void *argv) {
         Session &session = *(Session *) argv;
         const int fd = session.getCmdFd();
@@ -255,9 +281,11 @@ private:
         owner.destroySession(fd);
     }
 
-    /**
+    /*
      * should only be call with valid param.
      * for that can't code to check whether it is valid.
+     *
+     * run one threadPool's work thread
      */
     static void callbackOnEndOfCmd(void *argv) {
         Session &session = *(Session *) argv;
@@ -270,15 +298,17 @@ private:
         FTP &owner = *::ftpInstance;
         mutexUnlock(ftpInstanceMutex);
 
-        mutexLock(owner.epollMutex);
         epoll_event ev{};
         // MUST has EPOLLONESHOT here
         ev.events = EPOLLIN | EPOLLONESHOT;
         ev.data.fd = fd;
-        if (!epollCtlWrap(owner.epollFd, EPOLL_CTL_MOD, fd, &ev)) {
+
+        // mutexLock(owner.epollMutex);
+        bool ok = epollCtlWrap(owner.epollFd, EPOLL_CTL_MOD, fd, &ev);
+        // mutexUnlock(owner.epollMutex);
+        if (!ok) {
             owner.errorHandler(fd);
         }
-        mutexUnlock(owner.epollMutex);
     }
 
     bool sendFailedMsg(int fd) {
@@ -297,7 +327,7 @@ private:
     }
 
     /*
-     * This method will run in multiple threads.
+     * run on multiple threads.
      */
     void destroySession(int fd) {
         /*
@@ -316,9 +346,11 @@ private:
         }
         userRecord.erase(theUser);
         delete theUser->second;
+        // mutexLock(epollMutex);
         if (!epollCtlWrap(epollFd, EPOLL_CTL_DEL, fd)) {
             bugWithErrno("FTP::destroySession EPOLL_CTL_DEL failed", errno, true);
         }
+        // mutexUnlock(epollMutex);
         closeFileDescriptor(fd);
         mutexUnlock(userRecordMutex);
 
@@ -329,7 +361,7 @@ private:
     }
 
     /*
-     * This method run when SIGINT occur.
+     * This method run when SIGINT and SIGPIPE occur.
      * So it can ONLY invoke async-signal-safe functions (read the CSAPP P767)
      */
     static void signalHandler(int num) {
@@ -366,10 +398,6 @@ private:
 
 private:
     /*
-     * The var below will be use in multiThreads.
-     */
-
-    /*
      * The userRecord is protected by userRecordMutex.
      * when operate userRecord, MUST lock this mutex,
      * no matter whether read or write.
@@ -380,18 +408,29 @@ private:
     pthread_mutex_t userOnlineCntMutex = PTHREAD_MUTEX_INITIALIZER;
 
     /*
-     * map cmdFd to Session*
+     * map user's cmdFd to user's Session*
+     *
+     * protected by userRecordMutex
      */
     unordered_map<int, Session *> userRecord;
 
+    /*
+     * protected by userOnlineCntMutex
+     */
     int userOnlineCnt = 0;
+
+    /*
+     * use atomic for memory barrier
+     */
     atomic_int epollFd = -1;
 
 private:
-    const int cmdListenPort{};
-    constexpr static size_t DEFAULT_THREAD_CNT_OF_THREAD_POOL = 128;
     /*
-     * The var below will be use in ONLY on control thread.
+     * cmdListenPort is ONLY used in control thread
+     */
+    const int cmdListenPort = -1;
+    /*
+     * this pool var is ONLY used on control thread
      */
     ThreadPool *pool = nullptr;
 

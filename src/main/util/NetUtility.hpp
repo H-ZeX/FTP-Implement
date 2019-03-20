@@ -154,6 +154,7 @@ OpenListenFdReturnValue openListenFd(int backLog = DEFAULT_BACKLOG) {
             || errno == EINVAL || errno == EPROTONOSUPPORT) {
             bugWithErrno("openListenFd socket failed", errno, true);
         } else {
+            warningWithErrno("openListenFd socket failed", errno);
             return {false, -1, -1};
         }
     }
@@ -163,6 +164,7 @@ OpenListenFdReturnValue openListenFd(int backLog = DEFAULT_BACKLOG) {
     }
     if (listen(listenFd, backLog) < 0) {
         if (errno == EADDRINUSE) {
+            warningWithErrno("openListenFd listen failed", errno);
             closeFileDescriptor(listenFd);
             return {false, -1, -1};
         } else {
@@ -174,6 +176,7 @@ OpenListenFdReturnValue openListenFd(int backLog = DEFAULT_BACKLOG) {
     if (getsockname(listenFd, (struct sockaddr *) &sin, &len) < 0) {
         if (errno == ENOBUFS) {
             closeFileDescriptor(listenFd);
+            warningWithErrno("openListenFd getsockname failed", errno);
             return {false, -1, -1};
         } else {
             bugWithErrno("openListenFd getsockname failed", errno, true);

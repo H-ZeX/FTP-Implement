@@ -132,10 +132,10 @@ size_t maxThreadCnt() {
     rlimit rl{};
     if (getrlimit(RLIMIT_NPROC, &rl) < 0) {
         bugWithErrno("getrlimit failed", errno, true);
-        return DEFAULT_THREAD_CNT;
     } else {
         return std::min<rlim_t>(rl.rlim_cur, rl.rlim_max);
     }
+    assert(false);
 }
 
 /**
