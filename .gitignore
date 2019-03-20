@@ -6,19 +6,14 @@ cmake-build-debug/
 CMakeFiles/
 cmake_install.cmake
 CMakeCache.txt
-FTPServer
-
 Makefile
-
-FTPServer
 FTPServer.cbp
 
 .*.sw*
 
 .idea/
-.fuse_hidden00008c0900000003
-
 .gradle/
+
 gradlew
 gradlew.bat
 out/
@@ -27,3 +22,7 @@ Testing/
 CTestTestfile.cmake
 UtilTest
 *.out
+.fuse_hidden*
+CoreTest
+ToolsTest
+config.properties

@@ -29,6 +29,7 @@ public class StressTest {
     // It MUST be final to safely publish to other threads
     private final List<String> testDirs;
     private final CompletionService<Void> executorService;
+    private final ThreadPoolExecutor threadPool;
     private final Pattern pasvPattern;
 
     private final ThreadLocal<Random> localRandom = new ThreadLocal<>();
@@ -57,33 +58,34 @@ public class StressTest {
         this.STOR_CMD_DIR = storCmdDir;
         this.testDirs = testDirs;
 
-        // File storDir = new File(storCmdDir);
-        // if (storDir.exists() || !storDir.isAbsolute()) {
-        //     throw new IllegalArgumentException("MUST make sure the Tester.StorTestDir DOESN'T exist and make sure it is absolute");
-        // }
-        // if (!storDir.mkdirs()) {
-        //     throw new IOException("create Tester.StorTestDir failed");
-        // }
-        // for (String testDir : testDirs) {
-        //     File dir = new File(testDir);
-        //     if (dir.exists() || !dir.isAbsolute()) {
-        //         throw new IllegalArgumentException(" MUST make sure Tester.ListTestDir DON'T exist, and make sure they are absolute");
-        //     }
-        //     if (!dir.mkdirs()) {
-        //         throw new IOException("create Tester.StorTestDir failed");
-        //     }
-        // }
+        File storDir = new File(storCmdDir);
+        if (storDir.exists() || !storDir.isAbsolute()) {
+            throw new IllegalArgumentException("MUST make sure the Tester.StorTestDir DOESN'T exist and make sure it is absolute");
+        }
+        if (!storDir.mkdirs()) {
+            throw new IOException("create Tester.StorTestDir failed");
+        }
+        for (String testDir : testDirs) {
+            File dir = new File(testDir);
+            if (dir.exists() || !dir.isAbsolute()) {
+                throw new IllegalArgumentException(" MUST make sure Tester.ListTestDir DON'T exist, and make sure they are absolute");
+            }
+            if (!dir.mkdirs()) {
+                throw new IOException("create Tester.StorTestDir failed");
+            }
+        }
 
         int threadCnt = maxCmdConnectionCnt > maxThreadCnt ? maxThreadCnt : maxCmdConnectionCnt;
-        this.executorService = new ExecutorCompletionService<>(new ThreadPoolExecutor(
+        this.threadPool = new ThreadPoolExecutor(
                 threadCnt, threadCnt,
-                Integer.MAX_VALUE, TimeUnit.DAYS,
+                Integer.MAX_VALUE, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(maxCmdConnectionCnt),
                 r -> {
                     Thread thread = new Thread(r);
                     thread.setName("StressTest#" + thread.getId());
                     return thread;
-                }));
+                });
+        this.executorService = new ExecutorCompletionService<>(threadPool);
         this.pasvPattern = Pattern.compile("\\d+,\\d+,\\d+,\\d+,\\d+,\\d+");
     }
 
@@ -97,6 +99,8 @@ public class StressTest {
         for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
             executorService.take().get();
         }
+        threadPool.shutdown();
+        threadPool.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
         final int expected = this.MAX_CMD_CONNECTION_CNT;
         assert successCnt.sum() == expected : successCnt.sum() + ", " + expected;
         successCnt.reset();

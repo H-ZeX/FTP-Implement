@@ -8,11 +8,16 @@
 *
 **********************************************************************************/
 
-#include "src/ftp/FTP.h"
+#include "src/main/core/FTP.hpp"
 
-int main() {
-    FTP ftp;
-    int port = 8088;
-
-    ftp.start(port);
+int main(int argc, char **argv) {
+    int port;
+    if (argc <= 1) {
+        cerr << "usage: nc <port>, if port is not specified, user 8001" << endl;
+        port = 8001;
+    } else {
+        port = std::stoi(argv[1]);
+    }
+    FTP *ftp = FTP::getInstance(port);
+    ftp->startAndRun();
 }
