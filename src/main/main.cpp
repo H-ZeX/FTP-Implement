@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     }
     int port;
     if (argc <= 1) {
-        cerr << "usage: nc <port>, if port is not specified, user 8001" << endl;
+        cerr << "usage: FTPServer <port>, if port is not specified, use 8001" << endl;
         port = 8001;
     } else {
         port = std::stoi(argv[1]);
