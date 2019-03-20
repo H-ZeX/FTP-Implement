@@ -46,6 +46,8 @@
   Tester.Password=
   # These dir MUST NOT exist, MUST be absoute path
   # this is the list of dirs that split by comma
+  # This dir's cnt should >=10, the more, the better, 
+  # if too less, the test will be very below, for that many client read the same dir is very slow    
   Tester.ListTestDir=/tmp/testDir_1,/tmp/testDir_2,/tmp/testDir_3,/tmp/testDir_4,/tmp/testDir_5,/tmp/testDir_6,/tmp/testDir_7,/tmp/testDir_8,/tmp/testDir_9,/tmp/testDir_10,/tmp/testDir_11,/tmp/testDir_12,/tmp/testDir_13,/tmp/testDir_14,/tmp/testDir_15,/tmp/testDir_16,/tmp/testDir_17
   # this is one dir 
   # This dir MUST NOT exist, MUST be absoute path 
@@ -55,3 +57,4 @@
 #### Result
 
 - In my computer(Intel i7-8550U, 16G memory, no SSD), when the `StressTest.MaxCmdConnectionCnt` below **`10240`**, the test will run success, and using linux's `ftp` command to communicate with the server is very smooth
+
