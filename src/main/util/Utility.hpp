@@ -712,4 +712,16 @@ void signalWrap(int signum, sighandler_t handler) {
     }
 }
 
+bool setRLimitWrap(int resource, const rlimit &limit) {
+    if (setrlimit(resource, &limit) < 0) {
+        if (errno != EPERM) {
+            bugWithErrno("setRLimitWrap setrlimit failed", errno, true);
+        } else {
+            warningWithErrno("setRLimitWrap setrlimit failed", errno);
+            return false;
+        }
+    }
+    return true;
+}
+
 #endif

@@ -10,10 +10,27 @@
 
 #include "src/main/core/FTP.hpp"
 
+bool changeLimit() {
+    bool ok = true;
+
+    rlimit limit{RLIM_INFINITY, RLIM_INFINITY};
+    ok = ok & setRLimitWrap(RLIMIT_STACK, limit);
+
+    limit = {MAX_FD_CNT, MAX_FD_CNT};
+    ok = ok & setRLimitWrap(RLIMIT_NOFILE, limit);
+
+    limit = {RLIM_INFINITY, RLIM_INFINITY};
+    ok = ok & setRLimitWrap(RLIMIT_AS, limit);
+
+    return ok;
+}
+
 int main(int argc, char **argv) {
     if (getuid() != 0) {
         fprintf(stderr, "warning: This server should run with sudo\n");
         exit(0);
+    } else if (!changeLimit()) {
+        fprintf(stderr, "warning: change process's limit failed, this server may not support too many connection\r\n");
     }
     int port;
     if (argc <= 1) {
