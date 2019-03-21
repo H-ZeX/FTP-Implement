@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 project(FTPServer)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_COMPILER /usr/bin/clang++-7)
+set(CMAKE_CXX_COMPILER  $ENV{CC} clang++-7)
 #set(CMAKE_CXX_COMPILER /usr/bin/g++)
 add_compile_options(-W -Wall -g)
 
