@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
@@ -45,5 +46,13 @@ public class StressTestTest {
     @Test
     public void test5() {
         System.out.println("aa\r\n".lastIndexOf("\r\n"));
+    }
+
+    @Test
+    public void test6() {
+        File file = new File("/tmp");
+        System.out.println(file.getName());
+        System.out.println(file.getParent());
+        System.out.println(file.getPath());
     }
 }
