@@ -23,6 +23,7 @@ public class StressTest {
     private final int SERVER_PORT;
     private final int TEST_CNT;
     private final String SERVER_IP;
+    private final String MYSELF_IP;
     private final String USERNAME;
     private final String PASSWORD;
     private final String STOR_CMD_DIR;
@@ -43,6 +44,7 @@ public class StressTest {
                       @Value("${StressTest.MaxThreadCnt}") int maxThreadCnt,
                       @Value("${StressTest.HangTime}") int hangTime,
                       @Value("${Tester.TesterServerAddress}") String serverAddr,
+                      @Value("${Tester.YourselfAddress}") String myselfIp,
                       @Value("${Tester.ServerPort}") int serverPort,
                       @Value("${Tester.UserName}") String userName,
                       @Value("${Tester.Password}") String password,
@@ -53,16 +55,21 @@ public class StressTest {
         this.MAX_CMD_CONNECTION_CNT = maxCmdConnectionCnt;
         this.SERVER_IP = serverAddr;
         this.SERVER_PORT = serverPort;
+        this.MYSELF_IP = myselfIp;
         this.USERNAME = userName;
         this.PASSWORD = password;
         this.HANG_TIME = hangTime;
         this.STOR_CMD_DIR = storCmdDir;
         this.testDirs = testDirs;
 
-        System.err.println("\r\n\r\n");
-        checkDir(new File(storCmdDir));
-        for (String testDir : testDirs) {
-            checkDir(new File(testDir));
+        if (this.MYSELF_IP.equals(this.SERVER_IP)) {
+            System.err.println("\r\n\r\n");
+            checkDir(new File(storCmdDir));
+            for (String testDir : testDirs) {
+                checkDir(new File(testDir));
+            }
+        } else {
+            System.err.println("\r\n\r\nmake sure the host that run the FTP server has the Tester.ListTestDir and Tester.StorTestDir");
         }
 
         int threadCnt = maxCmdConnectionCnt > maxThreadCnt ? maxThreadCnt : maxCmdConnectionCnt;
@@ -120,7 +127,7 @@ public class StressTest {
         threadPool.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
     }
 
-    public void handOnCmdConnection() {
+    public void handOnCmdConnection() throws InterruptedException, IOException {
         if (localRandom.get() == null) {
             localRandom.set(new Random());
         }
@@ -146,8 +153,6 @@ public class StressTest {
             }
             successCnt.add(1);
             Thread.sleep(HANG_TIME);
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
         } finally {
             int t = finishCnt.addAndGet(1);
             System.out.println("finish: " + t);
@@ -159,7 +164,8 @@ public class StressTest {
         listen.setReuseAddress(true);
         listen.bind(null, 1);
         int port = listen.getLocalPort();
-        cmdOutput.write(("port 127,0,0,1," + port / 256 + "," + port % 256 + "\r\n").getBytes());
+        String selfIp = MYSELF_IP.replace(".", ",");
+        cmdOutput.write(("port " + selfIp + "," + port / 256 + "," + port % 256 + "\r\n").getBytes());
         cmdOutput.flush();
         String r = readResponse(cmdInput);
         assert r != null;
