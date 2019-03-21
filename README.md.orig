@@ -19,14 +19,10 @@
 - First, run the FTP server
   ```
   ulimit -s unlimited -f unlimited -d unlimited -n unlimited 
-  su root
-  echo 20000 >  /proc/sys/net/core/somaxconn
   sudo ./FTPServer [port]  > /tmp/FTPServerOutput
   ```
   
   Redirect the stdout to `/tmp/FTPServerOutput` is for the clear output of warning msg
-
-  Change `somaxconn` is to make the backlog large enough.
 
   The `sudo` is because that it use operating system's accout login mechanism
 
@@ -49,7 +45,11 @@
   Tester.TesterServerAddress=10.243.6.109
   
   # the host that you run the tester
+<<<<<<< HEAD
   # MUST make sure that this two host can connect to each other,
+=======
+  # MUST make sure that this two host can connection each other,
+>>>>>>> 1463fe87611e60802a88ca87dd44e1bfc7ad2067
   # which means, they can active connection to each other.
   Tester.YourselfAddress=10.243.6.43
 
