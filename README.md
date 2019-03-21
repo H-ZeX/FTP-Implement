@@ -42,7 +42,9 @@
   StressTest.HangTime=1000
   Tester.TesterServerAddress=127.0.0.1
   Tester.ServerPort=8001
+  # The username of account in your OS
   Tester.UserName=
+  # The password of account in your OS
   Tester.Password=
   # These dir MUST NOT exist, MUST be absoute path
   # this is the list of dirs that split by comma
@@ -56,4 +58,5 @@
 
 #### Result
 
-- In my computer(Intel i7-8550U, 16G memory, no SSD), when the `StressTest.MaxCmdConnectionCnt` below **`10240`**, the test will run success, and using linux's `ftp` command to communicate with the server, the response is very fast.
+- In my computer(Intel i7-8550U, 16G memory, no SSD), when the `StressTest.MaxCmdConnectionCnt` below **`10240`**, the test will run success, and using linux's `ftp` command to communicate with the server while run the test, it response fast.
+

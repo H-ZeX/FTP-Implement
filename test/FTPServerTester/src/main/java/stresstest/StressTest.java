@@ -9,6 +9,7 @@ import java.net.Socket;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.Scanner;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
@@ -47,7 +48,7 @@ public class StressTest {
                       @Value("${Tester.Password}") String password,
                       @Value("${Tester.StorTestDir}") String storCmdDir,
                       @Value("${Tester.ListTestDir}") List<String> testDirs
-    ) throws IOException, InterruptedException {
+    ) {
         this.TEST_CNT = testCnt;
         this.MAX_CMD_CONNECTION_CNT = maxCmdConnectionCnt;
         this.SERVER_IP = serverAddr;
@@ -58,21 +59,10 @@ public class StressTest {
         this.STOR_CMD_DIR = storCmdDir;
         this.testDirs = testDirs;
 
-        File storDir = new File(storCmdDir);
-        if (storDir.exists() || !storDir.isAbsolute()) {
-            throw new IllegalArgumentException("MUST make sure the Tester.StorTestDir DOESN'T exist and make sure it is absolute");
-        }
-        if (!storDir.mkdirs()) {
-            throw new IOException("create Tester.StorTestDir failed");
-        }
+        System.err.println("\r\n\r\n");
+        checkDir(new File(storCmdDir));
         for (String testDir : testDirs) {
-            File dir = new File(testDir);
-            if (dir.exists() || !dir.isAbsolute()) {
-                throw new IllegalArgumentException(" MUST make sure Tester.ListTestDir DON'T exist, and make sure they are absolute");
-            }
-            if (!dir.mkdirs()) {
-                throw new IOException("create Tester.StorTestDir failed");
-            }
+            checkDir(new File(testDir));
         }
 
         int threadCnt = maxCmdConnectionCnt > maxThreadCnt ? maxThreadCnt : maxCmdConnectionCnt;
@@ -89,6 +79,24 @@ public class StressTest {
         this.pasvPattern = Pattern.compile("\\d+,\\d+,\\d+,\\d+,\\d+,\\d+");
     }
 
+    private void checkDir(File dir) {
+        Scanner scanner = new Scanner(System.in);
+        final String path = dir.getPath();
+        if (!dir.isAbsolute()) {
+            System.err.println("The " + path + " MUST be absolute!");
+            System.exit(1);
+        }
+        if (dir.exists()) {
+            System.err.println("The " + path + " had exist! Do you want to continue?\n" +
+                    "Press ENTER to continue, or Ctrl-C to exist");
+            scanner.nextLine();
+        }
+        if (!dir.exists() && !dir.mkdirs()) {
+            System.err.println("Create " + path + " failed");
+            System.exit(1);
+        }
+    }
+
     public void stressWithoutDataConnection() throws InterruptedException, ExecutionException {
         for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
             executorService.submit(() -> {
@@ -97,13 +105,19 @@ public class StressTest {
             });
         }
         for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
-            executorService.take().get();
+            try {
+                executorService.take().get();
+            } catch (Throwable throwable) {
+                System.err.println("One Test failed: " + throwable.getMessage());
+            }
         }
+        System.err.println(successCnt.sum() + " test success, " +
+                (this.MAX_CMD_CONNECTION_CNT - successCnt.sum()) + " failed");
+        // assert successCnt.sum() == expected : successCnt.sum() + ", " + expected;
+        successCnt.reset();
+        // Thread.sleep(120 * 1000);
         threadPool.shutdown();
         threadPool.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
-        final int expected = this.MAX_CMD_CONNECTION_CNT;
-        assert successCnt.sum() == expected : successCnt.sum() + ", " + expected;
-        successCnt.reset();
     }
 
     public void handOnCmdConnection() {
@@ -115,7 +129,7 @@ public class StressTest {
         } catch (InterruptedException ignored) {
         }
         try (Socket socket = new Socket(SERVER_IP, SERVER_PORT)) {
-            // socket.setSoTimeout(1024 * 10);
+            socket.setSoTimeout(1024 * 50);
             OutputStream out = socket.getOutputStream();
             InputStream in = socket.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(in));
@@ -140,7 +154,7 @@ public class StressTest {
         }
     }
 
-    private ServerSocket portCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
+    private ServerSocket portCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException {
         ServerSocket listen = new ServerSocket();
         listen.setReuseAddress(true);
         listen.bind(null, 1);
@@ -148,107 +162,77 @@ public class StressTest {
         cmdOutput.write(("port 127,0,0,1," + port / 256 + "," + port % 256 + "\r\n").getBytes());
         cmdOutput.flush();
         String r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("200") : r;
         return listen;
     }
 
-    private Socket pasvCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
+    private Socket pasvCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException {
         cmdOutput.write("pasv\r\n".getBytes());
         cmdOutput.flush();
         String r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("227") : r;
         Object[] addr = parsePasv(r);
         return new Socket((String) addr[0], (int) addr[1]);
     }
 
-    private void login(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
+    private void login(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException {
         // read the welcome msg
         String r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("220") : r;
         cmdOutput.write(("user " + USERNAME + "\r\n").getBytes());
         cmdOutput.flush();
         r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("331") : r;
         cmdOutput.write(("pass " + PASSWORD + "\r\n").getBytes());
         cmdOutput.flush();
         r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("230") : r;
     }
 
-    private void listUsingPortCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
+    private void listUsingPortCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException {
         ServerSocket listen = portCmd(cmdInput, cmdOutput, owner);
         String dir = testDirs.get(localRandom.get().nextInt(testDirs.size()));
         cmdOutput.write(("list " + dir + "\r\n").getBytes());
         cmdOutput.flush();
         String r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("150") : r;
         Socket socket = listen.accept();
         listen.close();
         readUntilEOF(socket.getInputStream());
         socket.close();
         r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("226") : r;
     }
 
-    private void listUsingPasvCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
+    private void listUsingPasvCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException {
         Socket socket = pasvCmd(cmdInput, cmdOutput, owner);
         String dir = testDirs.get(localRandom.get().nextInt(testDirs.size()));
         cmdOutput.write(("list " + dir + "\r\n").getBytes());
         cmdOutput.flush();
         String r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("150") : r;
         readUntilEOF(socket.getInputStream());
         socket.close();
         r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("226") : r;
     }
 
-    private void storUsingPortCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
+    private void storUsingPortCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException {
         ServerSocket listen = portCmd(cmdInput, cmdOutput, owner);
         String file = STOR_CMD_DIR + "/tmp_" + cntForStor.addAndGet(1);
         cmdOutput.write(("stor " + file + "\r\n").getBytes());
         cmdOutput.flush();
         String r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("150") : r;
         Socket socket = listen.accept();
         listen.close();
@@ -256,10 +240,7 @@ public class StressTest {
         socket.getOutputStream().write(testMsg.getBytes());
         socket.close();
         r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("226") : r;
         FileInputStream input = new FileInputStream(file);
         String fileText = readUntilEOF(input);
@@ -273,19 +254,13 @@ public class StressTest {
         cmdOutput.write(("stor " + file + "\r\n").getBytes());
         cmdOutput.flush();
         String r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("150") : r;
         final String testMsg = "testMsg";
         socket.getOutputStream().write(testMsg.getBytes());
         socket.close();
         r = readResponse(cmdInput);
-        if (r == null) {
-            Thread.sleep(1024 * 1024 * 1024);
-            while (true) ;
-        }
+        assert r != null;
         assert r.startsWith("226") : r;
         FileInputStream input = new FileInputStream(file);
         String fileText = readUntilEOF(input);
