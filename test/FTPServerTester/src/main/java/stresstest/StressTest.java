@@ -129,7 +129,7 @@ public class StressTest {
         } catch (InterruptedException ignored) {
         }
         try (Socket socket = new Socket(SERVER_IP, SERVER_PORT)) {
-            socket.setSoTimeout(1024 * 50);
+            socket.setSoTimeout(1024 * 30);
             OutputStream out = socket.getOutputStream();
             InputStream in = socket.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(in));
