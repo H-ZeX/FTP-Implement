@@ -40,7 +40,16 @@
   StressTest.MaxThreadCnt=1024
   # the time(millisecond) to hand on the connection
   StressTest.HangTime=1000
-  Tester.TesterServerAddress=127.0.0.1
+  
+  # the host that you run the ftp server
+  Tester.TesterServerAddress=10.243.6.109
+  
+  # the host that you run the tester
+  # MUST make sure that this two host can connect to each other,
+  # which means, they can active connection to each other.
+  Tester.YourselfAddress=10.243.6.43
+
+
   Tester.ServerPort=8001
   # The username of account in your OS
   Tester.UserName=
