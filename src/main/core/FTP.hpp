@@ -365,6 +365,7 @@ private:
      * So it can ONLY invoke async-signal-safe functions (read the CSAPP P767)
      */
     static void signalHandler(int num) {
+        errno_t tmp = errno;
         switch (num) {
             case SIGINT: {
                 willExit = true;
@@ -383,6 +384,7 @@ private:
                 _exit(BUG_EXIT);
             }
         }
+        errno = tmp;
     }
 
     /**
