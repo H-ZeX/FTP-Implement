@@ -63,12 +63,12 @@
   # this is the list of dirs that split by comma
   # This dir's cnt should >=20, the more, the better, 
   # if too less, the test will be very slow, for that many client read the same dir is very slow
-  # These dir should exit in your testServer, if the server and testProgram run on different host
+  # These dir should exist in your testServer, if the server and testProgram run on different host
   # if they run in the same host, then the testProgram will create these dir
   Tester.ListTestDir=/tmp/testDir_1,/tmp/testDir_2,/tmp/testDir_3,/tmp/testDir_4,/tmp/testDir_5,/tmp/testDir_6,/tmp/testDir_7,/tmp/testDir_8,/tmp/testDir_9,/tmp/testDir_10,/tmp/testDir_11,/tmp/testDir_12,/tmp/testDir_13,/tmp/testDir_14,/tmp/testDir_15,/tmp/testDir_16,/tmp/testDir_17
   # this is one dir 
   # This MUST be absoute path 
-  # This dir should exit in your testServer, if the server and testProgram run on different host
+  # This dir should exist in your testServer, if the server and testProgram run on different host
   # if they run in the same host, then the testProgram will create this dir
   Tester.StorTestDir=/tmp/FTPSeverTesterStorDirs____23233dd22/
   ```
