@@ -20,9 +20,8 @@
 /**
  * @return if success, return file descriptor.
  * @return -1 accept connect fail
- *
- * MT-Safety: Unknown(the `makeSureFdType` and `accept` function's Thread-Safety is Unknown)
  */
+ // TODO: what will happen if accept on same listenFd
 int acceptConnect(int listenFd) {
     assert(listenFd >= 3);
     makeSureFdType(listenFd, S_IFSOCK);
@@ -50,7 +49,7 @@ int acceptConnect(int listenFd) {
  * @return if success, return file descriptor
  * @return -1 if failed
  *
- * MT-Safety: Unknown(Because the `socket`, `connect`, `close` function's Thread-Safety is Unknown)
+ * MT-Safety: MT-Safe
  */
 int openClientFd(const char *hostname, const char *port) {
     assert(hostname != nullptr && port != nullptr);
@@ -91,8 +90,6 @@ int openClientFd(const char *hostname, const char *port) {
  * @return if success, return file descriptor
  * @return -1 if failed
  *
- * MT-Safety: Unknown(Because the `socket`, `connect`, `close`,
- * `listen`, `bind` function's Thread-Safety is Unknown)
  */
 int openListenFd(const char *port, int backlog = DEFAULT_BACKLOG) {
     assert(port != nullptr && backlog > 0);

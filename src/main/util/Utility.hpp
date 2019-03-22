@@ -141,8 +141,6 @@ size_t maxThreadCnt() {
 /**
  * if the fd is not given type, this function will report an bug
  * @return if there is error occur, return false;
- *
- * Thread-Safety: Unknown
  */
 bool makeSureFdType(int fd, int type) {
     int t = isfdtype(fd, type);
@@ -268,7 +266,7 @@ struct ReadBuf {
  * -1 if error occur, the errno will be set appropriately.
  * errno can be EAGAIN EWOULDBLOCK EBADF EINVAL EIO
  *
- * Thread-Safety: Unknown(because the `read` function's Thread-Safety is Unknown)
+ * Thread-Safety: NOT MT-safe, should NOT use same fd, result, buf in multiple threads.
  */
 int readWithBuf(int fd, byte *result, int want, ReadBuf &buf) {
     if (buf.remainderSize > 0) {
@@ -336,7 +334,7 @@ bool readAllData(vector<char> &result, int fd, ReadBuf &buf) {
 }
 
 /**
- * Thread-Safety: Unknown(because the write function's Thread-Safety is Unknown
+ * Thread-Safety: NOT MT-Safe, should NOT use same fd, buf in MT
  */
 bool writeAllData(int fd, const byte *buf, size_t size) {
     if (size == 0) {
@@ -372,7 +370,8 @@ bool writeAllData(int fd, const byte *buf, size_t size) {
 }
 
 /**
- * Thread-Safety: Unknown(Because the `close` function's Thread-Safety is Unknown)
+ * @warning
+ * Should NOT call close in same fd multiple time.
  */
 void closeFileDescriptor(int fd) {
     if (fd < 3 && fd >= 0) {
@@ -414,9 +413,6 @@ int fcntlWrapV1(int fd, int cmd, int argv) {
     }
 }
 
-/**
- * Thread-Safety: Unknown(because of `fcntl` function's Thread-Safety is Unknown)
- */
 bool setNonBlocking(int fd) {
     int r = fcntlWrapV1(fd, F_GETFL, 0);
     if (r < 0) {
@@ -493,15 +489,14 @@ struct ReadLineReturnValue {
 
 /**
  * @note
- * if EndOfLine is true, then EOF will always be false
+ * if EndOfLine is true, then EOF will always be false.
+ * <br/>
+ * MT-safety: NOT MT-safe, should NOT use same fd, buf, cache in MT
  *
  * @param size the buf len should >= size+1, after read, the buf[size] is 0.
  * if the size is too small, then may not contain one full line.
  * @param buf store the result, the index after the line's last char is 0.
  * the buf does NOT contain the CRLF
- *
- * MT-safety: Unknown(because of `read` function's Thread-Safety is Unknown)
- *
  */
 ReadLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cache) {
     assert(fd >= 3 && buf != nullptr && size > 0);
@@ -540,8 +535,8 @@ ReadLineReturnValue readLine(int fd, byte *buf, unsigned long size, ReadBuf &cac
  * This function only work when the str doesn't contain alone CR or LR
  * @note
  * This method will block even the fd is nonblock
- *
- * MT-Safety: Unknown(because the `read` function's Thread-Safety is Unknown)
+ * <br/>
+ * Thread-Safety: should NOT use same fd, cache in MT
  */
 bool consumeByteUntilEndOfLine(int fd, ReadBuf &cache) {
     // TODO, this function only work when the str doesn't contain alone CR or LR
