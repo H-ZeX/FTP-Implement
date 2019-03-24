@@ -58,6 +58,7 @@ int openClientFd(const char *hostname, const char *port) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_NUMERICSERV;
     hints.ai_flags |= AI_ADDRCONFIG;
+    // TODO the errno handler has error
     if ((rc = getaddrinfo(hostname, port, &hints, &list)) != 0) {
         warningWithErrno("openClientFd getaddrinfo failed", (rc == EAI_SYSTEM) ? errno : rc);
         return -1;

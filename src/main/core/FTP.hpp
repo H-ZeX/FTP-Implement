@@ -21,6 +21,11 @@ class FTP;
 /*
  * this var is operate by signal handler
  * so it must be global var
+ *
+ * use bool is ok, for that the sig_atomic_t has such comment
+ * C99: An integer type that can be accessed as an atomic entity,
+ * even in the presence of asynchronous interrupts.
+ * It is not currently necessary for this to be machine-specific.
  */
 static volatile bool willExit = false;
 
