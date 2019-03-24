@@ -5,7 +5,7 @@
 ### Overview
 
 - Implement according to RFC 959
-- C2K
+- C3K~C4K
 - Should use `sudo` to run this FTP server, for that it use operating system's accout login mechanism.
 - Develop and test on linux kernel >= 4.10 (debian series), so I don't know whethere it will work fine at other kernel or operating system.
 - Does NOT support the authority control. Because that I use threadPool but the posix's setuid and `syscall(SYS_setuid, uid)` don't support setting other thread's uid(If you know how to do it, please tell me. Thank you!).
@@ -76,4 +76,10 @@
 #### Result
 
 - In my computer(Intel i7-8550U, 16G memory, no SSD), when the `StressTest.MaxCmdConnectionCnt` below **`10240`**, the test will run success, and using linux's `ftp` command to communicate with the server while run the test, it response fast.
-
+- If set the tester as follows
+   ```
+   StressTest.MaxCmdConnectionCnt=10000
+   StressTest.MaxThreadCnt=2024
+   StressTest.HangTime=2000
+   ```
+   then use ` sudo watch -n 0.5 "netstat -nv | grep 8001 | grep -i "est" | wc -l " `, the connections number is 3K~4K. And communicate with the server using `ftp` command while running tester, its response is not slow.
