@@ -157,6 +157,28 @@ void joinThread(pthread_t pid, void **retVal = nullptr) {
     }
 }
 
+void pthreadSigmaskWrap(int how, sigset_t *newSet, sigset_t *oldSet = nullptr) {
+    int s = pthread_sigmask(how, newSet, oldSet);
+    if (s != 0) {
+        bugWithErrno("pthreadSigmaskWrap pthread_sigmask", s, true);
+    }
+}
+
+/**
+ * @param sigSet MUST end with 0 to indicate the end of array.
+ * The len of this array should <= 30, because there are only 30 kind of signal.
+ */
+static void makeSigSet(const int sigSet[], sigset_t &result) {
+    sigemptyset(&result);
+    int i = 0;
+    for (i = 0; sigSet[i] && i < 30; i++) {
+        if (sigaddset(&result, sigSet[i]) < 0) {
+            bugWithErrno("makeSigSet sigaddset", errno, true);
+        }
+    }
+    assert(i <= 30);
+}
+
 /**
  * @param sigSet end with 0 to indicate the end of sigSet, for that all signal is >0.
  * The max len of sigSet is 30.
@@ -181,17 +203,9 @@ void joinThread(pthread_t pid, void **retVal = nullptr) {
  * MT-safe
  */
 void changeThreadSigMask(const int sigSet[], int how) {
-    sigset_t set;
-    sigemptyset(&set);
-    for (int i = 0; sigSet[i] && i < 30; i++) {
-        if (sigaddset(&set, sigSet[i]) < 0) {
-            bugWithErrno("changeThreadSigMask sigaddset", errno, true);
-        }
-    }
-    int s = pthread_sigmask(how, &set, nullptr);
-    if (s != 0) {
-        bugWithErrno("changeThreadSigMask pthread_sigmask", s, true);
-    }
+    sigset_t result{};
+    makeSigSet(sigSet, result);
+    pthreadSigmaskWrap(how, &result);
 }
 
 #endif

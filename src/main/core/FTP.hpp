@@ -158,9 +158,24 @@ private:
     void eventLoop(int mainFd) {
         const int evArraySize = FTP_MAX_USER_ONLINE_CNT;
         auto *const evArray = new epoll_event[evArraySize];
+        const int sigSet[] = {SIGINT, 0};
+        sigset_t sigToBlock{}, oldSigSet{};
+        makeSigSet(sigSet, sigToBlock);
         while (true) {
-            int waitFdCnt = epollWaitWrap(this->epollFd, evArray, evArraySize, -1);
+
+            // make sure there is no race condition:
+            // the signal occur after check willExit and before epoll_wait
+            // then the epoll_wait may not wake up.
+            pthreadSigmaskWrap(SIG_BLOCK, &sigToBlock, &oldSigSet);
+            if (willExit) {
+                break;
+            }
+            int waitFdCnt = epollPWaitWrap(this->epollFd, evArray, evArraySize, -1, oldSigSet);
+            pthreadSigmaskWrap(SIG_SETMASK, &oldSigSet);
+
             for (int i = 0; i < waitFdCnt && !willExit; i++) {
+                // all these code will not block infinitely,
+                // so needn't to block SIGINT.
                 if (evArray[i].data.fd != mainFd) {
                     if (evArray[i].events & EPOLLIN) {
                         this->gotoSessionHandler(evArray[i].data.fd);
