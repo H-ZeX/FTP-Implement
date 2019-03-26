@@ -122,8 +122,8 @@ public:
         signalWrap(SIGPIPE, FTP::signalHandler);
         this->pool->start();
         eventLoop(mainFd);
+        // mainFd is listenFd, so we can close it here
         closeFileDescriptor(mainFd);
-        closeFileDescriptor(epollFd);
         return true;
     }
 
@@ -136,6 +136,9 @@ public:
             destroySession(it.second->getCmdFd());
         }
         mutexUnlock(userRecordMutex);
+        // Can only close epollFd here.
+        // Because destroySession uses epollFd.
+        closeFileDescriptor(epollFd);
         mutexDestroy(userRecordMutex);
         mutexDestroy(epollMutex);
         mutexDestroy(userOnlineCntMutex);
