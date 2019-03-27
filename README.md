@@ -77,10 +77,9 @@
 
 - In my computer(Intel i7-8550U, 16G memory, no SSD), when the `StressTest.MaxCmdConnectionCnt` below **`10240`**, the test will run success, and using linux's `ftp` command to communicate with the server while run the test, it response fast.
 - If set the tester as follows
-   ```
+  ```properties
    StressTest.MaxCmdConnectionCnt=10000
-   StressTest.MaxThreadCnt=2024
-   StressTest.HangTime=2000
+   StressTest.MaxThreadCnt=4024
+   StressTest.HangTime=10000
    ```
-   then use ` sudo watch -n 0.5 "netstat -nv | grep 8001 | grep -i "est" | wc -l " `, the connections number is 3K~4K. And communicate with the server using `ftp` command while running tester, its response is not slow.
-
+   then use `sudo watch -n 0.5 "netstat -anp | grep -i <PID> | grep -i "est"  | wc -l "`, the connections number is 3K~4K. And communicate with the server using `ftp` command while running tester, its response is not slow.
