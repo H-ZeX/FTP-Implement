@@ -26,3 +26,4 @@ UtilTest
 CoreTest
 ToolsTest
 config.properties
+*.orig
