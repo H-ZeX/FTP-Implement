@@ -26,3 +26,24 @@
 - gdb调试
    - thread apply all bt
    - info threads 可以看到所有线程当前在哪
+
+- 往对端已经关闭的socket写数据，会返回RST，但是write会返回写了>0字节
+   ```c
+   static void test4() {
+       OpenListenFdReturnValue ret = openListenFd(1);
+       assert(ret.success);
+
+       int client = openClientFd("localhost", to_string(ret.port).c_str());
+       assert(client >= 3);
+       int server = acceptConnect(ret.listenFd);
+       closeFileDescriptor(client);
+       sleep(3);
+       assert(write(server, "s", 1) == 1);
+   }
+   ```
+- brokenPipe：如果某个write返回rst，再次write就会broken pipe，broken pipe的含义是往read端关闭的管道写东西
+- gdb调试时的signal函数设置的信号handler似乎无用，比如我设置了SIGPIPE的handler，但是gdb还是反馈收到SIGPIPE，而不用gdb则是调用我设置的信号handler
+
+- java中对于线程池的shutdown一定要在finally子句完成，不然很可能因为RuntimeException而没机会shutdown，结果整个线程池hang在那里
+
+- 对map.find返回的iterator的修改是可以反映在map上的，说明其实有树内的引用的。如果对map的某个元素erase，然后又使用find返回的iterator，就会出问题

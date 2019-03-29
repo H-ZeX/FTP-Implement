@@ -12,7 +12,7 @@
 #include "Login.hpp"
 #include "Session.hpp"
 
-#include <map>
+#include <unordered_map>
 
 using std::string;
 using std::map;
@@ -39,7 +39,10 @@ public:
      * @param endOfCmdCallback callback when end of a cmd.
      * @param endOfSessionCallback callback when end of this session.
      * <br/>
+     * @note
      * When end of session, will NOT call end of cmd callback.
+     * <br/>
+     * When called endOfCmdCallback, will NOT call endOfSessionCallback.
      */
     explicit Session(int cmdFd,
                      void (*endOfCmdCallback)(void *),
@@ -59,6 +62,8 @@ public:
             // if no EOL, should check whether EOF,
             // if EOF, should endOfSession the session
             // or will receive broken pipe signal
+            //
+            // When call endOfCmd, MUST make sure NOT not to call endOfSession.
             if (!ret.success) {
                 if (ret.isEOF) {
                     this->endOfSession();
@@ -613,7 +618,7 @@ private:
     const string selfIp{};
     string currentPath{};
 
-    const std::map<string, void (Session::*)(int)> handlerMap{
+    const std::unordered_map<string, void (Session::*)(int)> handlerMap{
             {"CDUP", &Session::cdup},
             {"CWD",  &Session::cwd},
             {"DELE", &Session::dele},

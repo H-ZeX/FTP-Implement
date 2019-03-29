@@ -104,36 +104,32 @@ public class StressTest {
         }
     }
 
-    public void stressWithoutDataConnection() throws InterruptedException, ExecutionException {
-        for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
-            executorService.submit(() -> {
-                handOnCmdConnection();
-                return null;
-            });
-        }
-        for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
-            try {
-                executorService.take().get();
-            } catch (Throwable throwable) {
-                System.err.println("One Test failed: " + throwable.getMessage());
+    public void stressWithoutDataConnection() throws InterruptedException {
+        try {
+            for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
+                executorService.submit(() -> {
+                    handOnCmdConnection();
+                    return null;
+                });
             }
+            for (int j = 0; j < MAX_CMD_CONNECTION_CNT; j++) {
+                try {
+                    executorService.take().get();
+                } catch (Throwable throwable) {
+                    System.err.println("One Test failed: " + throwable.getMessage());
+                }
+            }
+            System.err.println(successCnt.sum() + " test success, " +
+                    (this.MAX_CMD_CONNECTION_CNT - successCnt.sum()) + " failed");
+        } finally {
+            threadPool.shutdown();
+            threadPool.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
         }
-        System.err.println(successCnt.sum() + " test success, " +
-                (this.MAX_CMD_CONNECTION_CNT - successCnt.sum()) + " failed");
-        // assert successCnt.sum() == expected : successCnt.sum() + ", " + expected;
-        successCnt.reset();
-        // Thread.sleep(120 * 1000);
-        threadPool.shutdown();
-        threadPool.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
     }
 
     public void handOnCmdConnection() throws InterruptedException, IOException {
         if (localRandom.get() == null) {
             localRandom.set(new Random());
-        }
-        try {
-            Thread.sleep(localRandom.get().nextInt(1000));
-        } catch (InterruptedException ignored) {
         }
         try (Socket socket = new Socket(SERVER_IP, SERVER_PORT)) {
             socket.setSoTimeout(1024 * 30);
@@ -254,7 +250,7 @@ public class StressTest {
         assert testMsg.equals(fileText) : fileText;
     }
 
-    private void storUsingPasvCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException, InterruptedException {
+    private void storUsingPasvCmd(BufferedReader cmdInput, OutputStream cmdOutput, Socket owner) throws IOException {
         Socket socket = pasvCmd(cmdInput, cmdOutput, owner);
         String file = STOR_CMD_DIR + "/tmp_" + cntForStor.addAndGet(1);
         cmdOutput.write(("stor " + file + "\r\n").getBytes());

@@ -354,26 +354,43 @@ private:
      */
     void destroySession(int fd) {
         /*
-         * MUST make sure that, between the destroy process,
-         * the fd is not reuse by OS,
-         * so we MUST free the fd after all delete work.
+         * MUST make sure that, while destroySession,
+         * the session associate with the fd is not invoked
+         * (no matter the session is new session or origin session).
+         *
+         * After close the fd, the OS may reuse the fd,
+         * however, the openNewSession will block because of userRecordMutex
+         * so no new session will be created.
+         *
+         * Make sure epoll_ctl_del the fd from epoll interest list before close it.
+         * To avoid the epoll_wait return this fd.
          *
          * For that the user's cmd FD is EPOLLONESHOT,
          * so we can make sure that while destroy the session,
          * no other thread will invoke this session.
          */
         mutexLock(userRecordMutex);
-        auto theUser = userRecord.find(fd);
-        if (theUser == userRecord.end()) {
+        auto user = userRecord.find(fd);
+        if (user == userRecord.end()) {
             bug("FTP::destroySession failed: the fd has no corresponding session");
         }
-        userRecord.erase(theUser);
-        delete theUser->second;
-        // mutexLock(epollMutex);
+        delete user->second;
+        userRecord.erase(user);
+
+        /*
+         * MUST make sure epoll_ctl_del before close the fd.
+         * See the epoll_wait manual for what will happen when close an fd
+         * which is monitored by epoll_wait.
+         *
+         * User epollMutex to make sure the epoll_ctl_del run before closeFileDescriptor.
+         * TODO will this way work?
+         */
+        mutexLock(epollMutex);
         if (!epollCtlWrap(epollFd, EPOLL_CTL_DEL, fd)) {
             bugWithErrno("FTP::destroySession EPOLL_CTL_DEL failed", errno, true);
         }
-        // mutexUnlock(epollMutex);
+        mutexUnlock(epollMutex);
+
         closeFileDescriptor(fd);
         mutexUnlock(userRecordMutex);
 

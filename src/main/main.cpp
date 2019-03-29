@@ -22,6 +22,12 @@ bool changeLimit() {
     limit = {RLIM_INFINITY, RLIM_INFINITY};
     ok = ok & setRLimitWrap(RLIMIT_AS, limit);
 
+    limit = {RLIM_INFINITY, RLIM_INFINITY};
+    ok = ok & setRLimitWrap(RLIMIT_CORE, limit);
+
+    limit = {RLIM_INFINITY, RLIM_INFINITY};
+    ok = ok & setRLimitWrap(RLIMIT_DATA, limit);
+
     return ok;
 }
 
