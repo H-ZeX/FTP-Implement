@@ -27,3 +27,5 @@ CoreTest
 ToolsTest
 config.properties
 *.orig
+
+FTPServer
