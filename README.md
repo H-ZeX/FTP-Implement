@@ -80,6 +80,6 @@
   ```properties
    StressTest.MaxCmdConnectionCnt=10000
    StressTest.MaxThreadCnt=4024
-   StressTest.HangTime=10000
+   StressTest.HangTime=0
    ```
    then use `sudo watch -n 0.5 "netstat -anp | grep -i <PID> | grep -i "est"  | wc -l "`, the connections number is 3K~4K. And communicate with the server using `ftp` command while running tester, its response is not slow.
