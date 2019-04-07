@@ -105,7 +105,7 @@ void conditionDestroy(pthread_cond_t &cond) {
 }
 
 void conditionSignal(pthread_cond_t &cond) {
-    // TODO the behavior of signal is different from manual
+    // the behavior of signal is different from manual
     // according to manual https://linux.die.net/man/3/pthread_cond_signal
     // if call pthread_cond_signal with an uninitialized condition.
     // it will return an EINVAL. however, in my test, it block.
@@ -123,7 +123,7 @@ void conditionSignal(pthread_cond_t &cond) {
 }
 
 void conditionBroadcast(pthread_cond_t &cond) {
-    // TODO the behavior of broadcast is different manual
+    // the behavior of broadcast is different from manual
     // see the conditionSignal comment
     int t = pthread_cond_broadcast(&cond);
     if (t != 0) {

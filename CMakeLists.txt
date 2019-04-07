@@ -21,7 +21,7 @@ set(SRC
         src/main/tools/ThreadPool.hpp
         src/main/util/ThreadUtility.hpp
         src/main/util/Utility.hpp
-        src/main/config/config.hpp
+        src/main/config/Config.hpp
         )
 
 set(UtilTestSrc

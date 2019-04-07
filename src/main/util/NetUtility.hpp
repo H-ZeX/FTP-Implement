@@ -2,7 +2,7 @@
 #define __NET_UTILITY_H__
 
 #include "src/main/util/Utility.hpp"
-#include "src/main/config/config.hpp"
+#include "src/main/config/Config.hpp"
 
 #include "Def.hpp"
 
@@ -21,7 +21,6 @@
  * @return if success, return file descriptor.
  * @return -1 accept connect fail
  */
- // TODO: what will happen if accept on same listenFd
 int acceptConnect(int listenFd) {
     assert(listenFd >= 3);
     makeSureFdType(listenFd, S_IFSOCK);
@@ -58,9 +57,13 @@ int openClientFd(const char *hostname, const char *port) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_NUMERICSERV;
     hints.ai_flags |= AI_ADDRCONFIG;
-    // TODO the errno handler has error
     if ((rc = getaddrinfo(hostname, port, &hints, &list)) != 0) {
-        warningWithErrno("openClientFd getaddrinfo failed", (rc == EAI_SYSTEM) ? errno : rc);
+        if (rc == EAI_SYSTEM) {
+            warningWithErrno("openClientFd getaddrinfo failed", errno);
+        } else {
+            string errMsg = "openClientFd getaddrinfo failed: " + string(gai_strerror(rc));
+            warning(errMsg.c_str());
+        }
         return -1;
     }
     addrinfo *p = nullptr;
@@ -102,8 +105,12 @@ int openListenFd(const char *port, int backlog = DEFAULT_BACKLOG) {
     // getaddrinfo is MT-safe env local
     int rc = 0;
     if ((rc = getaddrinfo(nullptr, port, &hints, &list)) != 0) {
-        warningWithErrno("OpenListenFd(port, backlog) getaddrinfo failed",
-                         rc == EAI_SYSTEM ? errno : rc);
+        if (rc == EAI_SYSTEM) {
+            warningWithErrno("openListenFd getaddrinfo failed", errno);
+        } else {
+            string errMsg = "openListenFd getaddrinfo failed: " + string(gai_strerror(rc));
+            warning(errMsg.c_str());
+        }
         return -1;
     }
     addrinfo *p = nullptr;

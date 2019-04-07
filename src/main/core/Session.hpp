@@ -6,7 +6,7 @@
 #include "src/main/tools/ListFiles.hpp"
 #include "src/main/util/NetUtility.hpp"
 #include "src/main/util/Utility.hpp"
-#include "src/main/config/config.hpp"
+#include "src/main/config/Config.hpp"
 
 #include "NetworkManager.hpp"
 #include "Login.hpp"

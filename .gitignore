@@ -13,11 +13,14 @@ FTPServer.cbp
 
 .idea/
 .gradle/
-
+gradle/
 gradlew
 gradlew.bat
 out/
 build/
+*.iml
+local.properties
+
 Testing/
 CTestTestfile.cmake
 UtilTest

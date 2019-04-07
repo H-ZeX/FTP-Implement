@@ -4,7 +4,7 @@
 #include "src/main/util/Def.hpp"
 #include "src/main/util/ThreadUtility.hpp"
 #include "src/main/util/Utility.hpp"
-#include "src/main/config/config.hpp"
+#include "src/main/config/Config.hpp"
 #include <atomic>
 #include <queue>
 #include <sys/resource.h>

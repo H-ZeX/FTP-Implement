@@ -6,7 +6,7 @@
 #include "src/main/tools/ThreadPool.hpp"
 #include "src/main/util/Utility.hpp"
 #include "Session.hpp"
-#include "src/main/config/config.hpp"
+#include "src/main/config/Config.hpp"
 
 #include <csignal>
 #include <sys/epoll.h>
@@ -98,7 +98,7 @@ public:
     // run on control thread
     bool startAndRun() {
         const string mainPort = to_string(cmdListenPort);
-        int mainFd = openListenFd(mainPort.c_str(), FTP_CMD_BACKLOG);
+        int mainFd = openListenFd(mainPort.c_str(), FTP_CMD_CONNECTION_BACKLOG);
         if (mainFd < 0) {
             warning(("FTP::startAndRun open " + mainPort + " port failed").c_str());
             return false;

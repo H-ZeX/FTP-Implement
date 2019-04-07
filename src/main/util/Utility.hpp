@@ -1,7 +1,7 @@
 #ifndef __UTILITY_H__
 #define __UTILITY_H__
 
-#include "src/main/config/config.hpp"
+#include "src/main/config/Config.hpp"
 
 #include "Def.hpp"
 
