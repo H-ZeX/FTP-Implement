@@ -1,6 +1,6 @@
 # FTP-Implement
 
-- [中文的介绍](https://h-zex.github.io/2019/03/20/%E5%BC%80%E5%8F%91%E4%B8%80%E4%B8%AA%E9%AB%98%E5%B9%B6%E5%8F%91%E7%9A%84FTP%E6%9C%8D%E5%8A%A1%E5%99%A8/)
+- [更详细的介绍在这里](https://h-zex.github.io/2019/03/20/%E5%BC%80%E5%8F%91%E4%B8%80%E4%B8%AA%E9%AB%98%E5%B9%B6%E5%8F%91%E7%9A%84FTP%E6%9C%8D%E5%8A%A1%E5%99%A8/)
 
 ### Overview
 
