@@ -144,7 +144,7 @@ public:
         if (this->dataFd < 0) {
             bug("NetworkManager::recvRemoteAndWriteLocalFile recvRemoteAndWriteLocalFile  while this->dataFd<0");
         }
-        int localFileFd = openWrapV2(path, O_CREAT | O_WRONLY,
+        int localFileFd = openWrapV2(path, O_CREAT | O_WRONLY | O_TRUNC,
                                      S_IWUSR | S_IRUSR | S_IWOTH
                                      | S_IROTH | S_IWGRP | S_IRGRP);
         if (localFileFd < 0) {
