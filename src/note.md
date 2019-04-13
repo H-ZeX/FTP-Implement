@@ -44,7 +44,7 @@
        assert(write(server, "s", 1) == 1);
    }
    ```
-- 出现一种情况，测试写10MB的文件，然后在测到中途时关闭，服务端会有一些establish链接，netstat发现，client端是`FIN_WAIT1`，wireshare没有抓到FIN包。测试参数如下
+- 出现一种情况，测试写10MB的文件(在`storUsingPortCmd`这个方法)，然后在测到中途时关闭，服务端会有一些establish链接，netstat发现，client端是`FIN_WAIT1`，wireshare没有抓到FIN包。测试参数如下
   ```properties
   StressTest.TestCnt=10
   StressTest.MaxCmdConnectionCnt=10000
