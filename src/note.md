@@ -26,6 +26,9 @@
 - gdb调试
    - thread apply all bt
    - info threads 可以看到所有线程当前在哪
+   - set logging on
+   - set logging file my_god_object.log
+   - 调试时的signal函数设置的信号handler似乎无用，比如我设置了SIGPIPE的handler，但是gdb还是反馈收到SIGPIPE，而不用gdb则是调用我设置的信号handler
 
 - 往对端已经关闭的socket写数据，会返回RST，但是write会返回写了>0字节
    ```c
@@ -41,8 +44,22 @@
        assert(write(server, "s", 1) == 1);
    }
    ```
+- 出现一种情况，测试写10MB的文件，然后在测到中途时关闭，服务端会有一些establish链接，netstat发现，client端是`FIN_WAIT1`，wireshare没有抓到FIN包。测试参数如下
+  ```properties
+  StressTest.TestCnt=10
+  StressTest.MaxCmdConnectionCnt=10000
+  StressTest.MaxThreadCnt=4024
+  # the time(millisecond) to hand on the connection
+  StressTest.HangTime=0
+  Tester.TesterServerAddress=127.0.0.1
+  Tester.YourselfAddress=127.0.0.1
+  Tester.ServerPort=8001
+  Tester.UserName=hzx
+  Tester.Password=...
+  Tester.ListTestDir=/tmp/3,/tmp/4,/tmp/5,/tmp/6,/tmp/7,/tmp/8,/tmp/9,/tmp/10,/tmp/11
+  Tester.StorTestDir=/tmp/seed/
+  ```
 - brokenPipe：如果某个write返回rst，再次write就会broken pipe，broken pipe的含义是往read端关闭的管道写东西
-- gdb调试时的signal函数设置的信号handler似乎无用，比如我设置了SIGPIPE的handler，但是gdb还是反馈收到SIGPIPE，而不用gdb则是调用我设置的信号handler
 
 - java中对于线程池的shutdown一定要在finally子句完成，不然很可能因为RuntimeException而没机会shutdown，结果整个线程池hang在那里
 
