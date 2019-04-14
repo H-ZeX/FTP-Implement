@@ -30,9 +30,11 @@ public:
         int data[taskCnt];
         for (int &j : data) {
             j = 1;
+            // TODO when the worker thread see &j(the ptr),
+            //  will it see correct j itself.
             pool->addTask(Task((ThreadPoolTest::runnerV1), &j));
         }
-        pool->shutdown(false);
+        pool->shutdown();
         delete pool;
         if (addResultV1 != taskCnt) {
             cout << addResultV1 << " " << taskCnt << endl;
@@ -52,13 +54,14 @@ public:
             const int taskCnt = static_cast<const int>(random() % maxTaskCnt);
             pthread_t threads[threadCnt];
             for (int j = 0; j < threadCnt; j++) {
+                // TODO will taskCnt safely publish to new thread
                 bool success = createThread(threads[j], ThreadPoolTest::addTaskRunner, (void *) &taskCnt);
                 if (!success) {
                     fprintf(stderr, "This test create too many threads!");
                     exit(0);
                 }
             }
-            // If I use join but not the way below(has benn commented),
+            // If I use join but not the way below(has been commented),
             // then such maxThreadCnt config will not lead to create thread failed.
             // However, the way below will lead to create failed.
             // Is the pthread_join clear the resource? (I did not find this in manual).
@@ -102,11 +105,12 @@ private:
         // pool.start();
 
         atomic_int endCnt{};
-        // TODO is this array and its content visible to another thread?
         Argv argvArray[taskCnt];
         for (int i = 0; i < taskCnt; i++) {
             argvArray[i].toAdd = i;
             argvArray[i].endCnt = &endCnt;
+            // the pool.addTask will safely publish the Task object to worker thread
+            // TODO when worker thread see the endCnt ptr, will it see a complete endCnt object
             pool.addTask(Task(ThreadPoolTest::runnerV2, &argvArray[i]));
         }
         while (endCnt != taskCnt) {
