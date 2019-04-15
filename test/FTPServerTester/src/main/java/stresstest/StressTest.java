@@ -261,16 +261,19 @@ public class StressTest {
         String r = readResponse(cmdInput);
         assert r != null;
         assert r.startsWith("150") : r;
-        final String testMsg = "testMsg";
-        socket.getOutputStream().write(testMsg.getBytes());
+        final int fileSize = 1024 * 100;
+        byte[] data = new byte[fileSize];
+        data[0] = (byte) localRandom.get().nextInt();
+        socket.getOutputStream().write(data);
         socket.close();
         r = readResponse(cmdInput);
         assert r != null;
         assert r.startsWith("226") : r;
         FileInputStream input = new FileInputStream(file);
-        String fileText = readUntilEOF(input);
+        byte[] nData = new byte[fileSize];
+        new DataInputStream(input).readFully(nData);
         input.close();
-        assert testMsg.equals(fileText) : fileText + ", len: " + fileText.length() + ", fileName: " + file;
+        assert Arrays.equals(data, nData);
     }
 
 
