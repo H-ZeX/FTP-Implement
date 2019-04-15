@@ -13,7 +13,12 @@
 
 ### StressTest
 
+#### Overview
 
+- Test include
+   - login
+   - list a dir
+   - upload 100KB files
 #### Step
 
 - First, run the FTP server
@@ -75,6 +80,7 @@
 
 #### Result
 
+- My tester and server run in same machine.
 - In my computer(Intel i7-8550U, 16G memory, no SSD), when the `StressTest.MaxCmdConnectionCnt` below **`10240`**, the test will run success, and using linux's `ftp` command to communicate with the server while run the test, it response fast.
 - If set the tester as follows
   ```properties
